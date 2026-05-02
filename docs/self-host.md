@@ -63,6 +63,7 @@ _TODO (Sprint 3): Expand with troubleshooting steps for common migration failure
 - Verify every change was applied cleanly: `sqlever verify --plan db/sqitch.plan`
 - Revert path (roll back all): `sqlever revert --plan db/sqitch.plan` — scripts in `db/revert/` mirror each deploy script.
 - pgque schema: the `pgque` migration step (`db/deploy/pgque.sql`) loads the vendored `db/pgque.sql`; confirm the `pgque` schema exists after deploy: `psql $DATABASE_URL -c '\dn'`.
+- **pgque ticker:** by default the worker self-ticks (`pgque.ticker(queue_name)`) on every poll cycle — no extra setup required; for production scale, offload the tick to pg_cron instead: `SELECT cron.schedule('pgque-google-push-tick', '5 seconds', $$SELECT pgque.ticker('google_push')$$);` and the self-tick in the worker can then be removed.
 
 ---
 

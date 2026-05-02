@@ -63,7 +63,9 @@ describe("processBatch — self-tick requirement", () => {
     expect(nextBatchCall).toBeDefined();
 
     // ticker must come BEFORE next_batch in call order
+    // biome-ignore lint/style/noNonNullAssertion: tickerCall and nextBatchCall were asserted defined above
     const tickerIdx = calls.indexOf(tickerCall!);
+    // biome-ignore lint/style/noNonNullAssertion: same as above
     const nextBatchIdx = calls.indexOf(nextBatchCall!);
     expect(tickerIdx).toBeLessThan(nextBatchIdx);
   });
@@ -85,8 +87,7 @@ describe("processBatch — self-tick requirement", () => {
     const tickerCall = calls.find((c) => c.text.includes("pgque.ticker"));
     // The queue name must appear in either the SQL text or the bound params
     const hasQueueName =
-      tickerCall?.text.includes("google_push") ||
-      tickerCall?.values.includes("google_push");
+      tickerCall?.text.includes("google_push") || tickerCall?.values.includes("google_push");
     expect(hasQueueName).toBe(true);
   });
 });

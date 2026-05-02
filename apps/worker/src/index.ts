@@ -16,9 +16,14 @@
 // pgque consumer pattern (direct SQL, no ORM, no framework — per CLAUDE.md):
 //   1. pgque.create_queue('google_push')   — idempotent, safe on restart
 //   2. pgque.register_consumer(queue, name) — idempotent
-//   3. Loop: pgque.next_batch → pgque.get_batch_events → process →
-//            pgque.event_retry (nack) or pgque.finish_batch (ack)
+//   3. Loop: pgque.ticker(queue_name) → pgque.next_batch → pgque.get_batch_events
+//            → process → pgque.event_retry (nack) or pgque.finish_batch (ack)
 //   4. LISTEN pgque_google_push for immediate wakeup on new events
+//
+// Self-ticking:
+//   why: Self-ticking worker — works without pg_cron. For production scale,
+//        schedule pg_cron to call pgque.ticker(queue_id) every Ns and remove
+//        this self-tick. Documented in docs/self-host.md.
 
 import { Client } from "pg";
 import { fixtureFetch } from "./fixture-fetch";
@@ -79,6 +84,14 @@ async function ensureQueueAndConsumer(): Promise<void> {
   await db.query("select pgque.create_queue($1)", [QUEUE_NAME]);
   console.log(`Queue '${QUEUE_NAME}' ensured.`);
 
+  // Log queue_id for easier debugging (e.g., when wiring pg_cron manually).
+  const queueIdResult = await db.query<{ queue_id: number }>(
+    "select queue_id from pgque.queue where queue_name = $1",
+    [QUEUE_NAME],
+  );
+  const queueId = queueIdResult.rows[0]?.queue_id ?? "(not found)";
+  console.log(`Queue '${QUEUE_NAME}' queue_id=${queueId}.`);
+
   // pgque.register_consumer returns 0 if already registered — idempotent.
   await db.query("select pgque.register_consumer($1, $2)", [QUEUE_NAME, CONSUMER_NAME]);
   console.log(`Consumer '${CONSUMER_NAME}' registered on '${QUEUE_NAME}'.`);
@@ -91,10 +104,17 @@ async function ensureQueueAndConsumer(): Promise<void> {
 /**
  * Process one pgque batch for the google_push queue.
  * Returns true if a batch was found and processed, false if the queue was empty.
+ *
+ * Exported so the unit test can inject a mock db client and assert ticker is called.
  */
-async function processBatch(): Promise<boolean> {
+export async function processBatch(dbClient: typeof db = db): Promise<boolean> {
+  // why: Self-ticking worker — works without pg_cron. For production scale,
+  //      schedule pg_cron to call pgque.ticker(queue_id) every Ns and remove
+  //      this self-tick. Documented in docs/self-host.md.
+  await dbClient.query("select pgque.ticker($1)", [QUEUE_NAME]);
+
   // next_batch returns NULL when there are no events.
-  const batchResult = await db.query<{ next_batch: string | null }>(
+  const batchResult = await dbClient.query<{ next_batch: string | null }>(
     "select pgque.next_batch($1, $2) as next_batch",
     [QUEUE_NAME, CONSUMER_NAME],
   );
@@ -104,7 +124,7 @@ async function processBatch(): Promise<boolean> {
   }
 
   // Fetch all events in this batch.
-  const eventsResult = await db.query<{
+  const eventsResult = await dbClient.query<{
     ev_id: string;
     ev_data: string;
     ev_retry: number | null;
@@ -115,7 +135,7 @@ async function processBatch(): Promise<boolean> {
     const attemptNumber = (ev.ev_retry ?? 0) + 1; // ev_retry is null on first attempt
 
     try {
-      await processGooglePushJob({ db, payload, fetchImpl });
+      await processGooglePushJob({ db: dbClient, payload, fetchImpl });
       // Success: ack this individual event (not the whole batch yet)
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
@@ -129,14 +149,20 @@ async function processBatch(): Promise<boolean> {
         // Fall through: finish_batch will mark it done without retry.
       } else {
         // Nack with exponential backoff.
+        // Cast $3 to integer explicitly — pgque has two event_retry overloads
+        // (integer seconds vs. timestamptz) and PG can't infer the type otherwise.
         const delaySec = RETRY_DELAYS_SECONDS[attemptNumber - 1] ?? 16;
-        await db.query("select pgque.event_retry($1, $2, $3)", [batchId, ev.ev_id, delaySec]);
+        await dbClient.query("select pgque.event_retry($1::bigint, $2::bigint, $3::integer)", [
+          batchId,
+          ev.ev_id,
+          delaySec,
+        ]);
       }
     }
   }
 
   // Finish the batch (mark subscription advanced past this tick).
-  await db.query("select pgque.finish_batch($1)", [batchId]);
+  await dbClient.query("select pgque.finish_batch($1)", [batchId]);
   return true;
 }
 
@@ -192,7 +218,11 @@ async function main(): Promise<void> {
   });
 }
 
-main().catch((err) => {
-  console.error("Worker fatal error:", err);
-  process.exit(1);
-});
+// Only run main when executed directly (not when imported by tests).
+// why: import.meta.main is Bun's equivalent of Node's require.main === module.
+if (import.meta.main) {
+  main().catch((err) => {
+    console.error("Worker fatal error:", err);
+    process.exit(1);
+  });
+}
