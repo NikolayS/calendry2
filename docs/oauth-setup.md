@@ -1,8 +1,32 @@
 # Google OAuth Setup Guide
 
-This guide covers configuring real Google OAuth for production deployments.
-In development and CI, a dev-mock provider at `/api/dev/oauth-google` is used
-instead — no real Google credentials are required to run locally.
+This guide covers two OAuth concerns for a Calendry self-host:
+
+1. **GoTrue admin OAuth** — how admins log in to `/admin` (magic link + Google sign-in via Supabase GoTrue). Deploy-time setup.
+2. **Google Calendar API** — the long-lived refresh token that lets the worker read/write the provider's Google Calendar. Provider onboarding step.
+
+---
+
+## GoTrue admin OAuth (magic link + Google sign-in)
+
+> **Deploy-time setup.** Complete this before provider onboarding.
+> In local dev the dev-mock provider handles Google sign-in automatically — no real credentials required.
+
+_TODO (Sprint 3): Add screenshots for each step; expand each bullet into prose; document GoTrue env var changes and compose restart procedure._
+
+### Magic link (Resend)
+
+- **What it will contain:** how to configure GoTrue to send magic-link emails via Resend in production; set `GOTRUE_SMTP_HOST`, `GOTRUE_SMTP_PORT`, and related env vars to point at Resend's SMTP endpoint (or use the in-stack Mailpit for dev); verify a magic link arrives and resolves to `/api/auth/callback`.
+- **Dev path:** magic-link emails are captured by the in-stack Mailpit container (`http://localhost:8025`); no Resend account needed locally.
+- **Production path:** set `EMAIL_DRIVER=resend`, `RESEND_API_KEY`, and `EMAIL_FROM` in `.env.local`; Resend's SMTP endpoint replaces Mailpit in the GoTrue SMTP config.
+
+### Google sign-in (Supabase GoTrue)
+
+- **What it will contain:** how to enable `GOTRUE_EXTERNAL_GOOGLE_ENABLED=true` in compose, set `GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID` / `GOTRUE_EXTERNAL_GOOGLE_SECRET` / `GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI`, and restart the `gotrue` service; note that `GOTRUE_DISABLE_SIGNUP=true` is intentional — only pre-seeded admin emails can sign in.
+- **Scopes required for admin login only:** `openid`, `email` (Calendar scope is NOT requested at admin login time — it is requested during provider onboarding).
+- **Authorized redirect URI to add in Google Cloud Console:** `https://<your-domain>/api/auth/callback/google`.
+
+---
 
 ## Development (local-first)
 
