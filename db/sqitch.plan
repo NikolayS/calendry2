@@ -2,5 +2,13 @@
 %project=calendry2
 %uri=https://github.com/NikolayS/calendry2
 
-# Migrations land in Sprint 0/Backend (#6).
-# sqlever (NikolayS/sqlever) deploys these via deploy/, revert/, verify/.
+extensions 2026-05-02T07:00:00Z Calendry Backend <backend@calendry.invalid> # Enable pgcrypto, btree_gist, pg_cron
+pgque 2026-05-02T07:01:00Z Calendry Backend <backend@calendry.invalid> # Vendor pgque job queue [requires: extensions]
+providers 2026-05-02T07:02:00Z Calendry Backend <backend@calendry.invalid> # Provider accounts [requires: pgque]
+availability_rules 2026-05-02T07:03:00Z Calendry Backend <backend@calendry.invalid> # Weekly availability windows with exclusion constraint [requires: providers]
+manual_blackouts 2026-05-02T07:04:00Z Calendry Backend <backend@calendry.invalid> # Provider-created busy blocks [requires: providers]
+bookings 2026-05-02T07:05:00Z Calendry Backend <backend@calendry.invalid> # Booking state machine [requires: providers]
+sync_channels 2026-05-02T07:06:00Z Calendry Backend <backend@calendry.invalid> # Google watch channel registry [requires: providers]
+busy_blocks 2026-05-02T07:07:00Z Calendry Backend <backend@calendry.invalid> # Materialized busy-block cache [requires: providers]
+idempotency_keys 2026-05-02T07:08:00Z Calendry Backend <backend@calendry.invalid> # Deduplication keys for external side effects [requires: pgque]
+email_outbox 2026-05-02T07:09:00Z Calendry Backend <backend@calendry.invalid> # Transactional email outbox [requires: bookings]
