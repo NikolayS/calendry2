@@ -13,7 +13,7 @@ WORKDIR /app
 
 # ── Install dependencies ────────────────────────────────────────────────────────
 FROM base AS deps
-COPY package.json bunfig.toml bun.lockb* ./
+COPY package.json bunfig.toml bun.lock* ./
 COPY apps/web/package.json       ./apps/web/package.json
 COPY apps/worker/package.json    ./apps/worker/package.json
 COPY packages/core/package.json  ./packages/core/package.json
