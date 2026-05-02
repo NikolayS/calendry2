@@ -12,7 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { Client } from "pg";
 
 const DATABASE_URL =
-  process.env["DATABASE_URL"] ?? "postgresql://postgres:postgres@localhost:5432/postgres";
+  process.env.DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5432/postgres";
 
 let client: Client;
 
@@ -40,19 +40,25 @@ describe("availability_rules exclusion constraint", () => {
     const providerId = providerRes.rows[0].id as string;
 
     // First rule: valid 2026-01-01 to 2026-12-31, Monday (weekday=1)
-    await client.query(`
+    await client.query(
+      `
       insert into availability_rules
         (provider_id, weekday, start_local, end_local, slot_minutes, buffer_minutes, valid_from, valid_to)
       values ($1, 1, '09:00', '17:00', 60, 10, '2026-01-01', '2026-12-31')
-    `, [providerId]);
+    `,
+      [providerId],
+    );
 
     // Second rule: overlapping window same provider+weekday — must fail
     await expect(
-      client.query(`
+      client.query(
+        `
         insert into availability_rules
           (provider_id, weekday, start_local, end_local, slot_minutes, buffer_minutes, valid_from, valid_to)
         values ($1, 1, '10:00', '18:00', 60, 10, '2026-06-01', '2026-12-31')
-      `, [providerId]),
+      `,
+        [providerId],
+      ),
     ).rejects.toThrow();
 
     // Cleanup
@@ -75,13 +81,16 @@ describe("bookings state CHECK constraint", () => {
     const providerId = providerRes.rows[0].id as string;
 
     await expect(
-      client.query(`
+      client.query(
+        `
         insert into bookings
           (provider_id, booker_email, booker_name, start_utc, end_utc, state, idempotency_key)
         values ($1, 'booker@test.invalid', 'Test Booker',
                 now(), now() + interval '1 hour',
                 'invalid_state', 'test-idempotency-key-state')
-      `, [providerId]),
+      `,
+        [providerId],
+      ),
     ).rejects.toThrow();
 
     // Cleanup
@@ -95,18 +104,24 @@ describe("bookings state CHECK constraint", () => {
 // ---------------------------------------------------------------------------
 describe("idempotency_keys uniqueness", () => {
   it("rejects duplicate (key, kind) pair", async () => {
-    const key = "test-idempotency-key-" + Date.now();
+    const key = `test-idempotency-key-${Date.now()}`;
 
-    await client.query(`
+    await client.query(
+      `
       insert into idempotency_keys (key, kind, result_json)
       values ($1, 'google_push', '{"status":"ok"}')
-    `, [key]);
+    `,
+      [key],
+    );
 
     await expect(
-      client.query(`
+      client.query(
+        `
         insert into idempotency_keys (key, kind, result_json)
         values ($1, 'google_push', '{"status":"ok"}')
-      `, [key]),
+      `,
+        [key],
+      ),
     ).rejects.toThrow();
 
     // Cleanup
