@@ -26,7 +26,7 @@ const CANCEL_TOKEN = "dGVzdA.dGVzdA"; // stub signed token
 test.describe("Booking happy path — mocked API", () => {
   test("slot list page loads and shows available slots", async ({ page }) => {
     // Mock availability API
-    await page.route(`**/api/availability**`, (route) => {
+    await page.route("**/api/availability**", (route) => {
       route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -57,7 +57,7 @@ test.describe("Booking happy path — mocked API", () => {
   });
 
   test("empty state renders when no slots available", async ({ page }) => {
-    await page.route(`**/api/availability**`, (route) => {
+    await page.route("**/api/availability**", (route) => {
       route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -71,7 +71,7 @@ test.describe("Booking happy path — mocked API", () => {
   });
 
   test("clicking a slot navigates to confirm page with start param", async ({ page }) => {
-    await page.route(`**/api/availability**`, (route) => {
+    await page.route("**/api/availability**", (route) => {
       route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -142,10 +142,9 @@ test.describe("Booking happy path — mocked API", () => {
     await page.click('button[type="submit"]');
 
     // Should navigate to booked confirmation page
-    await expect(page).toHaveURL(
-      new RegExp(`/book/${SLUG}/booked/${BOOKING_ID}`),
-      { timeout: 10_000 },
-    );
+    await expect(page).toHaveURL(new RegExp(`/book/${SLUG}/booked/${BOOKING_ID}`), {
+      timeout: 10_000,
+    });
   });
 
   test("confirm page: 409 response shows inline slot-taken error", async ({ page }) => {
@@ -223,7 +222,7 @@ test.describe("Booking happy path — mocked API", () => {
 
 test.describe("Booking page — keyboard navigation a11y", () => {
   test("slot buttons are reachable by Tab key", async ({ page }) => {
-    await page.route(`**/api/availability**`, (route) => {
+    await page.route("**/api/availability**", (route) => {
       route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -246,7 +245,9 @@ test.describe("Booking page — keyboard navigation a11y", () => {
     // Tab again if needed to reach the slot area
     let attempts = 0;
     while (attempts < 10) {
-      const focused = await page.evaluate(() => document.activeElement?.getAttribute("data-testid"));
+      const focused = await page.evaluate(() =>
+        document.activeElement?.getAttribute("data-testid"),
+      );
       if (focused === "slot-button") break;
       await page.keyboard.press("Tab");
       attempts++;

@@ -137,10 +137,12 @@ export function formatBookingDetails(input: BookingDetailsInput): BookingDetails
     zone: input.provider_zone,
   });
 
-  const bookerAbbr =
-    DateTime.fromISO(input.start_utc, { zone: input.booker_zone }).toFormat("ZZZZ");
-  const providerAbbr =
-    DateTime.fromISO(input.start_utc, { zone: input.provider_zone }).toFormat("ZZZZ");
+  const bookerAbbr = DateTime.fromISO(input.start_utc, { zone: input.booker_zone }).toFormat(
+    "ZZZZ",
+  );
+  const providerAbbr = DateTime.fromISO(input.start_utc, { zone: input.provider_zone }).toFormat(
+    "ZZZZ",
+  );
 
   return { safeName, safeNotes, bookerSlot, providerSlot, bookerAbbr, providerAbbr };
 }

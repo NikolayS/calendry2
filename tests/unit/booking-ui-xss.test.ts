@@ -33,7 +33,7 @@ const XSS_FIXTURES = [
   },
   {
     label: "img onerror injection",
-    input: '<img src=x onerror=alert(1)>',
+    input: "<img src=x onerror=alert(1)>",
     shouldNotContain: "<img",
   },
   {
@@ -78,7 +78,7 @@ describe("escapeHtml()", () => {
     expect(escapeHtml("x > y")).toBe("x &gt; y");
   });
 
-  it("escapes \" to &quot;", () => {
+  it('escapes " to &quot;', () => {
     expect(escapeHtml('"hello"')).toBe("&quot;hello&quot;");
   });
 
@@ -184,7 +184,10 @@ describe("formatBookingDetails() — XSS safety on rendered fields", () => {
   });
 
   it("renders null notes as empty string (not 'null' or undefined)", () => {
-    const result = formatBookingDetails({ ...baseBooking, booker_notes: null as unknown as string });
+    const result = formatBookingDetails({
+      ...baseBooking,
+      booker_notes: null as unknown as string,
+    });
     expect(result.safeNotes).toBe("");
   });
 
