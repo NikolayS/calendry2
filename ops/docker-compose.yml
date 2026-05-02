@@ -99,7 +99,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      PGRST_DB_URI: postgresql://authenticator:${POSTGRES_PASSWORD:-postgres}@postgres:5432/postgres
+      PGRST_DB_URI: postgresql://authenticator:${AUTHENTICATOR_PASSWORD:-authenticator_pw_local}@postgres:5432/postgres
       PGRST_DB_SCHEMAS: public
       PGRST_DB_ANON_ROLE: anon
       PGRST_JWT_SECRET: ${SUPABASE_JWT_SECRET:-super-secret-jwt-token-with-at-least-32-characters}
