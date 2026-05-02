@@ -208,11 +208,17 @@ function buildLocalDateTime(
 
 /**
  * Validate that no two rules overlap on the same weekday.
- * Two rules overlap if their time ranges intersect (touching is allowed).
+ * Two rules overlap if their time ranges intersect (touching is allowed)
+ * AND their valid_from/valid_to date ranges intersect.
  *
  * why: SPEC §Availability rule semantics — overlapping windows for the same
  * weekday are rejected to avoid silent ambiguity. Adjacent rules (touching)
- * are permitted.
+ * are permitted. Rules whose date ranges are disjoint can share a weekday
+ * with overlapping time windows (e.g. "normal Tuesdays 10–4 except July
+ * when 12–4" uses valid_to=Jun 30 + valid_from=Jul 1).
+ *
+ * Null/undefined valid_from is treated as -infinity; null/undefined valid_to
+ * as +infinity. A rule without both bounds is effective for all dates.
  */
 function validateRules(rules: AvailabilityRule[]): void {
   for (let i = 0; i < rules.length; i++) {
@@ -221,6 +227,21 @@ function validateRules(rules: AvailabilityRule[]): void {
       const b = rules[j];
       if (a.weekday !== b.weekday) continue;
 
+      // Short-circuit: if the date ranges do not intersect, these two rules
+      // can never be active on the same calendar day — no conflict possible.
+      // Date range overlap: a.valid_from <= b.valid_to AND b.valid_from <= a.valid_to
+      // Null valid_from = -infinity; null valid_to = +infinity.
+      const aFrom = a.valid_from ?? null;
+      const aTo = a.valid_to ?? null;
+      const bFrom = b.valid_from ?? null;
+      const bTo = b.valid_to ?? null;
+
+      // a's range ends before b's range starts → disjoint
+      if (aTo !== null && bFrom !== null && aTo < bFrom) continue;
+      // b's range ends before a's range starts → disjoint
+      if (bTo !== null && aFrom !== null && bTo < aFrom) continue;
+
+      // Date ranges intersect — now check time overlap.
       // Overlap iff a.start_local < b.end_local AND b.start_local < a.end_local
       // (strict inequalities — touching endpoints are allowed)
       if (a.start_local < b.end_local && b.start_local < a.end_local) {

@@ -1181,132 +1181,90 @@ describe("validateRules — date-bounded rule overlap", () => {
     endUtc: DateTime.fromISO("2025-08-01T00:00:00Z"),
   };
 
-  it(
-    "does NOT throw for same weekday + overlapping time windows + non-overlapping date ranges " +
-      "(SPEC §Availability rule semantics: 'normal Tuesdays 10–4 except July when 12–4')",
-    () => {
-      // Rule A: Tuesdays 10am–4pm, effective Jan 1–Jun 30
-      const rA = rule(
-        2, // Tuesday
-        10,
-        16,
-        60,
-        0,
-        NYC,
-        dt(NYC, 2025, 1, 1, 0),
-        dt(NYC, 2025, 6, 30, 23, 59),
-      );
-      // Rule B: Tuesdays 12pm–4pm, effective Jul 1–Dec 31
-      // Time windows overlap (12–16 is inside 10–16), but date ranges do not.
-      const rB = rule(
-        2, // Tuesday
-        12,
-        16,
-        60,
-        0,
-        NYC,
-        dt(NYC, 2025, 7, 1, 0),
-        dt(NYC, 2025, 12, 31, 23, 59),
-      );
-
-      expect(() =>
-        generateSlots({
-          rules: [rA, rB],
-          busy: [],
-          window: win,
-          providerZone: NYC,
-          renderZone: NYC,
-        }),
-      ).not.toThrow();
-    },
-  );
-
-  it(
-    "emits slots from the correct rule for each date period " +
-      "(Jun Tuesdays get 10am–4pm, Jul Tuesdays get 12pm–4pm)",
-    () => {
-      const rA = rule(
-        2,
-        10,
-        16,
-        60,
-        0,
-        NYC,
-        dt(NYC, 2025, 1, 1, 0),
-        dt(NYC, 2025, 6, 30, 23, 59),
-      );
-      const rB = rule(
-        2,
-        12,
-        16,
-        60,
-        0,
-        NYC,
-        dt(NYC, 2025, 7, 1, 0),
-        dt(NYC, 2025, 12, 31, 23, 59),
-      );
-
-      const slots = generateSlots({
-        rules: [rA, rB],
-        busy: [],
-        window: win,
-        providerZone: NYC,
-        renderZone: NYC,
-      });
-
-      // Jun Tuesdays (2025-06-03, 2025-06-10, 2025-06-17, 2025-06-24): 6 slots each = 24
-      // Jul Tuesdays (2025-07-01, 2025-07-08, 2025-07-15, 2025-07-22, 2025-07-29): 4 slots each = 20
-      const junTuesdaySlots = slots.filter((s) => {
-        const local = s.startUtc.setZone(NYC);
-        return local.month === 6 && local.weekday === 2;
-      });
-      const julTuesdaySlots = slots.filter((s) => {
-        const local = s.startUtc.setZone(NYC);
-        return local.month === 7 && local.weekday === 2;
-      });
-
-      // Jun rule: 10am–4pm, 60-min slots → 6 slots per Tuesday
-      expect(junTuesdaySlots.length).toBe(4 * 6); // 4 Jun Tuesdays × 6 slots
-
-      // Jul rule: 12pm–4pm, 60-min slots → 4 slots per Tuesday
-      expect(julTuesdaySlots.length).toBe(5 * 4); // 5 Jul Tuesdays × 4 slots
-
-      // Jun slots should NOT start before 10am local
-      for (const s of junTuesdaySlots) {
-        const local = s.startUtc.setZone(NYC);
-        expect(local.hour).toBeGreaterThanOrEqual(10);
-      }
-
-      // Jul slots should NOT start before 12pm local
-      for (const s of julTuesdaySlots) {
-        const local = s.startUtc.setZone(NYC);
-        expect(local.hour).toBeGreaterThanOrEqual(12);
-      }
-    },
-  );
-
-  it("STILL throws for same weekday + overlapping time windows + overlapping date ranges", () => {
-    // Both rules active for the same date range — conflict
+  it("does NOT throw for same weekday + overlapping time windows + non-overlapping date ranges " +
+    "(SPEC §Availability rule semantics: 'normal Tuesdays 10–4 except July when 12–4')", () => {
+    // Rule A: Tuesdays 10am–4pm, effective Jan 1–Jun 30
     const rA = rule(
-      2,
+      2, // Tuesday
       10,
       16,
       60,
       0,
       NYC,
-      dt(NYC, 2025, 6, 1, 0),
-      dt(NYC, 2025, 8, 31, 23, 59),
+      dt(NYC, 2025, 1, 1, 0),
+      dt(NYC, 2025, 6, 30, 23, 59),
     );
+    // Rule B: Tuesdays 12pm–4pm, effective Jul 1–Dec 31
+    // Time windows overlap (12–16 is inside 10–16), but date ranges do not.
     const rB = rule(
-      2,
+      2, // Tuesday
       12,
-      18,
+      16,
       60,
       0,
       NYC,
       dt(NYC, 2025, 7, 1, 0),
-      dt(NYC, 2025, 9, 30, 23, 59),
+      dt(NYC, 2025, 12, 31, 23, 59),
     );
+
+    expect(() =>
+      generateSlots({
+        rules: [rA, rB],
+        busy: [],
+        window: win,
+        providerZone: NYC,
+        renderZone: NYC,
+      }),
+    ).not.toThrow();
+  });
+
+  it("emits slots from the correct rule for each date period " +
+    "(Jun Tuesdays get 10am–4pm, Jul Tuesdays get 12pm–4pm)", () => {
+    const rA = rule(2, 10, 16, 60, 0, NYC, dt(NYC, 2025, 1, 1, 0), dt(NYC, 2025, 6, 30, 23, 59));
+    const rB = rule(2, 12, 16, 60, 0, NYC, dt(NYC, 2025, 7, 1, 0), dt(NYC, 2025, 12, 31, 23, 59));
+
+    const slots = generateSlots({
+      rules: [rA, rB],
+      busy: [],
+      window: win,
+      providerZone: NYC,
+      renderZone: NYC,
+    });
+
+    // Jun Tuesdays (2025-06-03, 2025-06-10, 2025-06-17, 2025-06-24): 6 slots each = 24
+    // Jul Tuesdays (2025-07-01, 2025-07-08, 2025-07-15, 2025-07-22, 2025-07-29): 4 slots each = 20
+    const junTuesdaySlots = slots.filter((s) => {
+      const local = s.startUtc.setZone(NYC);
+      return local.month === 6 && local.weekday === 2;
+    });
+    const julTuesdaySlots = slots.filter((s) => {
+      const local = s.startUtc.setZone(NYC);
+      return local.month === 7 && local.weekday === 2;
+    });
+
+    // Jun rule: 10am–4pm, 60-min slots → 6 slots per Tuesday
+    expect(junTuesdaySlots.length).toBe(4 * 6); // 4 Jun Tuesdays × 6 slots
+
+    // Jul rule: 12pm–4pm, 60-min slots → 4 slots per Tuesday
+    expect(julTuesdaySlots.length).toBe(5 * 4); // 5 Jul Tuesdays × 4 slots
+
+    // Jun slots should NOT start before 10am local
+    for (const s of junTuesdaySlots) {
+      const local = s.startUtc.setZone(NYC);
+      expect(local.hour).toBeGreaterThanOrEqual(10);
+    }
+
+    // Jul slots should NOT start before 12pm local
+    for (const s of julTuesdaySlots) {
+      const local = s.startUtc.setZone(NYC);
+      expect(local.hour).toBeGreaterThanOrEqual(12);
+    }
+  });
+
+  it("STILL throws for same weekday + overlapping time windows + overlapping date ranges", () => {
+    // Both rules active for the same date range — conflict
+    const rA = rule(2, 10, 16, 60, 0, NYC, dt(NYC, 2025, 6, 1, 0), dt(NYC, 2025, 8, 31, 23, 59));
+    const rB = rule(2, 12, 18, 60, 0, NYC, dt(NYC, 2025, 7, 1, 0), dt(NYC, 2025, 9, 30, 23, 59));
 
     expect(() =>
       generateSlots({
@@ -1353,23 +1311,20 @@ describe("validateRules — date-bounded rule overlap", () => {
     ).toThrow();
   });
 
-  it(
-    "does NOT throw for same weekday + non-overlapping time windows + overlapping date ranges " +
-      "(regression: existing adjacent-rule behaviour)",
-    () => {
-      // Both active all year, but time windows don't overlap (morning vs afternoon)
-      const rMorning = rule(2, 9, 12, 60, 0, NYC);
-      const rAfternoon = rule(2, 14, 17, 60, 0, NYC); // gap 12–14, no overlap
+  it("does NOT throw for same weekday + non-overlapping time windows + overlapping date ranges " +
+    "(regression: existing adjacent-rule behaviour)", () => {
+    // Both active all year, but time windows don't overlap (morning vs afternoon)
+    const rMorning = rule(2, 9, 12, 60, 0, NYC);
+    const rAfternoon = rule(2, 14, 17, 60, 0, NYC); // gap 12–14, no overlap
 
-      expect(() =>
-        generateSlots({
-          rules: [rMorning, rAfternoon],
-          busy: [],
-          window: win,
-          providerZone: NYC,
-          renderZone: NYC,
-        }),
-      ).not.toThrow();
-    },
-  );
+    expect(() =>
+      generateSlots({
+        rules: [rMorning, rAfternoon],
+        busy: [],
+        window: win,
+        providerZone: NYC,
+        renderZone: NYC,
+      }),
+    ).not.toThrow();
+  });
 });
