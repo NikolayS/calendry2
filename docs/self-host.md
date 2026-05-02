@@ -21,15 +21,16 @@ docker compose -f ops/docker-compose.yml up -d
 
 The stack starts:
 
-| Service    | Default port | Notes                     |
-|------------|-------------|---------------------------|
-| web        | 3000        | Next.js booking + admin   |
-| worker     | —           | Bun pgque consumer        |
-| postgres   | 5432        | Postgres 18 (internal)    |
-| postgrest  | 3001        | PostgREST API (internal)  |
-| gotrue     | 9999        | Supabase GoTrue auth      |
-| realtime   | 4000        | Supabase Realtime         |
-| studio     | 3002        | Supabase Studio UI        |
+| Service    | Default port | Notes                                   |
+|------------|--------------|-----------------------------------------|
+| web        | 3000         | Next.js booking + admin                 |
+| worker     | —            | Bun pgque consumer                      |
+| postgres   | 5432         | Postgres 18 (internal)                  |
+| postgrest  | 3001         | PostgREST API (internal)                |
+| gotrue     | 9999         | Supabase GoTrue auth                    |
+| realtime   | 4000         | Supabase Realtime                       |
+| studio     | 3002         | Supabase Studio UI                      |
+| mailpit    | 8025 (UI), 1025 (SMTP) | Local email capture (dev/test) |
 
 ## Cloudflare DNS + SSL
 
@@ -59,9 +60,15 @@ sqlever deploy --plan db/sqitch.plan
 
 Migrations land in Sprint 0/Backend (#6).
 
-## Bring your own SMTP
+## Email setup
 
-Set `EMAIL_DRIVER=smtp` and fill the `SMTP_*` variables in `.env.local`.
+**Dev / local:** `EMAIL_DRIVER` defaults to `smtp` and GoTrue + the worker both
+point at the in-stack **Mailpit** container (`mailpit:1025`). Open
+`http://localhost:8025` to inspect captured emails. No credentials required.
+
+**Production:** set `EMAIL_DRIVER=resend` and `RESEND_API_KEY` in `.env.local`.
+Alternatively, set `EMAIL_DRIVER=smtp` and supply your own `SMTP_HOST`,
+`SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_SECURE`.
 The worker checks relay connectivity at startup and exits loudly if unreachable.
 
 ## Updating

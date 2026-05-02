@@ -44,12 +44,29 @@ services:
       timeout: 5s
       retries: 5
 
+  # ── Mailpit (local-first SMTP capture — dev/test only) ────────────────────────
+  mailpit:
+    image: axllent/mailpit:v1.29.7
+    restart: unless-stopped
+    ports:
+      - "${MAILPIT_UI_PORT:-8025}:8025"
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # ── GoTrue (admin auth: magic link + Google OAuth) ─────────────────────────────
   gotrue:
     image: supabase/gotrue:v2.172.1
     restart: unless-stopped
     depends_on:
       postgres:
+        condition: service_healthy
+      mailpit:
         condition: service_healthy
     environment:
       GOTRUE_DB_DRIVER: postgres
@@ -62,8 +79,8 @@ services:
       GOTRUE_JWT_EXP: 3600
       GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
       GOTRUE_MAILER_AUTOCONFIRM: "false"
-      GOTRUE_SMTP_HOST: ${SMTP_HOST:-}
-      GOTRUE_SMTP_PORT: ${SMTP_PORT:-587}
+      GOTRUE_SMTP_HOST: ${SMTP_HOST:-mailpit}
+      GOTRUE_SMTP_PORT: ${SMTP_PORT:-1025}
       GOTRUE_SMTP_USER: ${SMTP_USER:-}
       GOTRUE_SMTP_PASS: ${SMTP_PASSWORD:-}
       GOTRUE_SMTP_ADMIN_EMAIL: ${EMAIL_FROM:-noreply@example.com}
@@ -184,7 +201,9 @@ services:
       SIGNED_LINK_SECRET: ${SIGNED_LINK_SECRET:-changeme}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       EMAIL_FROM: ${EMAIL_FROM:-noreply@example.com}
-      EMAIL_DRIVER: ${EMAIL_DRIVER:-resend}
+      EMAIL_DRIVER: ${EMAIL_DRIVER:-smtp}
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       RATE_LIMIT_PER_IP: ${RATE_LIMIT_PER_IP:-10}
@@ -193,6 +212,8 @@ services:
       - "${WEB_PORT:-3000}:3000"
     depends_on:
       postgres:
+        condition: service_healthy
+      mailpit:
         condition: service_healthy
     networks:
       - internal
@@ -208,13 +229,17 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/postgres}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       EMAIL_FROM: ${EMAIL_FROM:-noreply@example.com}
-      EMAIL_DRIVER: ${EMAIL_DRIVER:-resend}
+      EMAIL_DRIVER: ${EMAIL_DRIVER:-smtp}
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       SIGNED_LINK_SECRET: ${SIGNED_LINK_SECRET:-changeme}
       NEXT_PUBLIC_URL: ${NEXT_PUBLIC_URL:-http://localhost:3000}
     depends_on:
       postgres:
+        condition: service_healthy
+      mailpit:
         condition: service_healthy
     networks:
       - internal
