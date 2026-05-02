@@ -7,15 +7,28 @@
  * Routes tested:
  *   - / (landing)
  *   - /book/test-slug (public booking page — anonymous)
+ *   - /book/test-slug/confirm?start=… (booking form)
+ *   - /book/test-slug/booked/test-id?token=… (confirmation screen)
  *   - /admin/login (login page — must be accessible unauthenticated)
  */
 
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
+const SLOT_START = encodeURIComponent("2026-06-15T14:00:00.000Z");
+const STUB_TOKEN = "dGVzdA.dGVzdA";
+
 const ROUTES = [
   { path: "/", label: "landing" },
   { path: "/book/test-slug", label: "booking page" },
+  {
+    path: `/book/test-slug/confirm?start=${SLOT_START}&zone=America%2FNew_York`,
+    label: "booking confirm form",
+  },
+  {
+    path: `/book/test-slug/booked/00000000-0000-0000-0000-000000000001?token=${STUB_TOKEN}&start=${SLOT_START}&booker_zone=America%2FNew_York&provider_zone=Europe%2FMadrid&booker_email=test%40example.com`,
+    label: "booking confirmation screen",
+  },
   { path: "/admin/login", label: "admin login" },
 ];
 
