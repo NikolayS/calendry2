@@ -1,0 +1,7 @@
+{
+  "name": "@calendry/core",
+  "version": "0.0.1",
+  "private": true,
+  "module": "index.ts",
+  "types": "index.ts"
+}
