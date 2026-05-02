@@ -1,19 +1,19 @@
 import { describe, expect, it } from "bun:test";
 import { CalendarClient } from "../../packages/google/calendarClient";
 import {
+  GoogleApiError,
   OAuthTokenExpiredError,
   SyncTokenExpiredError,
-  GoogleApiError,
 } from "../../packages/google/errors";
-import happyTokenFixture from "../../packages/google/fixtures/happy-path-token.json";
-import happyInsertFixture from "../../packages/google/fixtures/happy-path-insert.json";
-import happyPatchFixture from "../../packages/google/fixtures/happy-path-patch.json";
-import happyListFixture from "../../packages/google/fixtures/happy-path-list.json";
-import happyWatchFixture from "../../packages/google/fixtures/happy-path-watch.json";
-import repeated401Fixture from "../../packages/google/fixtures/error-repeated-401.json";
 import retry5xxFixture from "../../packages/google/fixtures/error-5xx-retry-after.json";
 import dup409Fixture from "../../packages/google/fixtures/error-409-duplicate.json";
 import gone410Fixture from "../../packages/google/fixtures/error-410-gone.json";
+import repeated401Fixture from "../../packages/google/fixtures/error-repeated-401.json";
+import happyInsertFixture from "../../packages/google/fixtures/happy-path-insert.json";
+import happyListFixture from "../../packages/google/fixtures/happy-path-list.json";
+import happyPatchFixture from "../../packages/google/fixtures/happy-path-patch.json";
+import happyTokenFixture from "../../packages/google/fixtures/happy-path-token.json";
+import happyWatchFixture from "../../packages/google/fixtures/happy-path-watch.json";
 
 // ---------------------------------------------------------------------------
 // Hand-rolled fetch mock helpers
@@ -254,14 +254,15 @@ describe("CalendarClient — 5xx + Retry-After → GoogleApiError after 5 retrie
 describe("CalendarClient — 409 duplicate request_id → reconcile without error", () => {
   it("returns the existing event on 409 duplicate without throwing", async () => {
     let callCount = 0;
-    const mockFetch = makeFetchMock(async (url) => {
+    const mockFetch = makeFetchMock(async () => {
       callCount++;
       if (callCount === 1) {
-        // First call: insert returns 409
+        // First call: insert returns 409 duplicate
         return jsonResponse(dup409Fixture, 409);
       }
-      // Second call: client fetches the existing event by iCalUID / requestId lookup
-      return jsonResponse(happyInsertFixture, 200);
+      // Second call: client fetches existing event by iCalUID lookup (list endpoint)
+      // Returns a list-shaped response with the existing event in items[].
+      return jsonResponse(happyListFixture, 200);
     });
     const client = makeClient(mockFetch);
     const event = await client.insert({
@@ -272,8 +273,8 @@ describe("CalendarClient — 409 duplicate request_id → reconcile without erro
         end: { dateTime: "2026-05-10T14:50:00+02:00", timeZone: "Europe/Madrid" },
       },
     });
-    // Must get back a valid event (the existing one)
-    expect(event.id).toBe(happyInsertFixture.id);
+    // Must get back the first item from the list (the existing event)
+    expect(event.id).toBe(happyListFixture.items[0].id);
     // Must have made exactly 2 calls
     expect(callCount).toBe(2);
   });
@@ -283,7 +284,7 @@ describe("CalendarClient — 409 duplicate request_id → reconcile without erro
     const mockFetch = makeFetchMock(async () => {
       callCount++;
       if (callCount === 1) return jsonResponse(dup409Fixture, 409);
-      return jsonResponse(happyInsertFixture, 200);
+      return jsonResponse(happyListFixture, 200);
     });
     const client = makeClient(mockFetch);
     await expect(
@@ -327,7 +328,7 @@ describe("CalendarClient — 410 Gone on events.list → SyncTokenExpiredError",
 
 describe("CalendarClient — request_id header on every call", () => {
   it("sends X-Request-Id header on events.insert", async () => {
-    let capturedHeaders: Record<string, string> = {};
+    const capturedHeaders: Record<string, string> = {};
     const mockFetch = makeFetchMock(async (_url, init) => {
       const h = new Headers(init?.headers);
       h.forEach((v, k) => {
@@ -345,7 +346,9 @@ describe("CalendarClient — request_id header on every call", () => {
       },
     });
     // Per SPEC §Idempotency, every Google request must carry a per-call request_id header
-    expect(capturedHeaders["x-request-id"] ?? capturedHeaders["x-goog-request-reason"]).toBeDefined();
+    expect(
+      capturedHeaders["x-request-id"] ?? capturedHeaders["x-goog-request-reason"],
+    ).toBeDefined();
   });
 
   it("sends Authorization: Bearer header on every call", async () => {

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { exchangeRefreshToken } from "../../packages/google/oauthClient";
 import { OAuthInvalidGrantError, OAuthScopeDowngradeError } from "../../packages/google/errors";
 import invalidGrantFixture from "../../packages/google/fixtures/error-invalid-grant.json";
 import scopeDowngradeFixture from "../../packages/google/fixtures/error-scope-downgrade.json";
 import happyTokenFixture from "../../packages/google/fixtures/happy-path-token.json";
+import { exchangeRefreshToken } from "../../packages/google/oauthClient";
 
 // ---------------------------------------------------------------------------
 // Minimal hand-rolled fetch mock (no MSW, per issue spec)
