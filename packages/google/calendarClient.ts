@@ -6,7 +6,10 @@ import { GoogleApiError, OAuthTokenExpiredError, SyncTokenExpiredError } from ".
 import type { CalendarEvent, EventResource, EventsListResult, WatchChannel } from "./types";
 
 const CALENDAR_API = "https://www.googleapis.com/calendar/v3";
-const MAX_RETRIES = 5; // 1 initial + 4 retries
+
+// Total number of attempts per call (1 initial + 4 retries = 5 total).
+// See ERRORS.md §GoogleApiError for the full retry policy.
+const MAX_ATTEMPTS = 5;
 
 export interface CalendarClientOptions {
   accessToken: string;
@@ -103,15 +106,25 @@ export class CalendarClient {
    * Retry-After. Returns the Response for the caller to inspect.
    *
    * Throws `OAuthTokenExpiredError` after two consecutive 401 responses.
-   * Throws `GoogleApiError` after MAX_RETRIES failed 5xx/429 responses.
+   * Throws `SyncTokenExpiredError` on 410 Gone (sync token expired).
+   * Throws `GoogleApiError` after MAX_ATTEMPTS failed 5xx/429 responses.
+   *
+   * Total attempts: MAX_ATTEMPTS (1 initial + MAX_ATTEMPTS-1 retries).
    */
   private async callWithRetry(url: string, init: RequestInit): Promise<Response> {
     let attempt = 0;
     let consecutive401s = 0;
 
-    while (attempt < MAX_RETRIES) {
+    while (attempt < MAX_ATTEMPTS) {
       const response = await this.fetchImpl(url, init);
       attempt++;
+
+      // 410 Gone: sync token expired — not retryable, throw immediately.
+      if (response.status === 410) {
+        throw new SyncTokenExpiredError(
+          "events.list returned 410 Gone: sync token expired, full resync required",
+        );
+      }
 
       if (response.status === 401) {
         consecutive401s++;
@@ -130,7 +143,7 @@ export class CalendarClient {
       consecutive401s = 0;
 
       if (isRetryable(response.status)) {
-        if (attempt >= MAX_RETRIES) {
+        if (attempt >= MAX_ATTEMPTS) {
           throw new GoogleApiError(
             `Google API returned ${response.status} after ${attempt} attempts`,
             response.status,
@@ -145,7 +158,7 @@ export class CalendarClient {
     }
 
     // Should not reach here, but satisfy the type-checker.
-    throw new GoogleApiError(`Google API call failed after ${MAX_RETRIES} attempts`, 0);
+    throw new GoogleApiError(`Google API call failed after ${MAX_ATTEMPTS} attempts`, 0);
   }
 
   // ---------------------------------------------------------------------------
@@ -156,7 +169,10 @@ export class CalendarClient {
    * Insert a new event. Uses `requestId` as the Google `requestId` query
    * parameter for server-side idempotency.
    *
-   * On 409 duplicate: fetches and returns the existing event (no throw).
+   * On 409 duplicate: reconciles from the 409 response body when available,
+   * or falls back to a list scan by start/end time. Never throws on 409.
+   *
+   * Sprint 0 reconciliation strategy — see ERRORS.md §GoogleDuplicateRequestError.
    */
   async insert(options: InsertOptions): Promise<CalendarEvent> {
     const url = `${this.calendarBase()}/events?requestId=${encodeURIComponent(options.requestId)}`;
@@ -169,8 +185,7 @@ export class CalendarClient {
     const response = await this.callWithRetry(url, init);
 
     if (response.status === 409) {
-      // Reconcile: fetch the existing event by iCalUID derived from requestId.
-      return this.fetchByRequestId(options.requestId);
+      return this.reconcile409(response, options.resource);
     }
 
     if (!response.ok) {
@@ -185,26 +200,65 @@ export class CalendarClient {
   }
 
   /**
-   * Reconcile a 409 duplicate by listing events with the requestId as iCalUID.
-   * Google encodes the requestId as the iCalUID when using the requestId param.
+   * Reconcile a 409 duplicate response.
+   *
+   * Google's 409 on events.insert signals that the requestId was already
+   * processed. The response body may include the existing event resource
+   * under the `event` key. If present, return it directly (no second
+   * round-trip). If absent, fall back to a list scan filtered by the
+   * booking's start/end time.
+   *
+   * Sprint 0 reconciliation strategy: documented in ERRORS.md
+   * §GoogleDuplicateRequestError. Refined when real Google 409 fixtures
+   * become available from a deploy-time spike.
    */
-  private async fetchByRequestId(requestId: string): Promise<CalendarEvent> {
-    const params = new URLSearchParams({ iCalUID: requestId, maxResults: "1" });
+  private async reconcile409(response: Response, resource: EventResource): Promise<CalendarEvent> {
+    // Parse the 409 body — it may contain the existing event resource.
+    const body = (await response.json().catch(() => ({}))) as {
+      error?: {
+        errors?: Array<{ location?: string; reason?: string }>;
+      };
+      event?: CalendarEvent;
+    };
+
+    // Happy path: Google included the existing event in the 409 body.
+    if (body.event?.id) {
+      return body.event;
+    }
+
+    // Fallback: scan by start/end time to find the existing event.
+    // requestId is an idempotency key scoped to the operation — it is NOT
+    // stored as the event's iCalUID, so iCalUID=requestId would return empty.
+    return this.listByTimeWindow(resource);
+  }
+
+  /**
+   * Find an event by scanning the calendar with a timeMin/timeMax window
+   * derived from the resource's start/end. Returns the first matching event.
+   */
+  private async listByTimeWindow(resource: EventResource): Promise<CalendarEvent> {
+    const timeMin = resource.start.dateTime ?? resource.start.date ?? "";
+    const timeMax = resource.end.dateTime ?? resource.end.date ?? "";
+    const params = new URLSearchParams({ timeMin, timeMax, maxResults: "1" });
     const url = `${this.calendarBase()}/events?${params.toString()}`;
+    const requestId = `reconcile:${timeMin}`;
     const init: RequestInit = {
       method: "GET",
       headers: this.authHeaders(requestId),
     };
-    const response = await this.fetchImpl(url, init);
-    if (!response.ok) {
+    const listResponse = await this.fetchImpl(url, init);
+    if (!listResponse.ok) {
       throw new GoogleApiError(
-        `events.list (dup reconcile) failed (HTTP ${response.status})`,
-        response.status,
+        `events.list (409 reconcile fallback) failed (HTTP ${listResponse.status})`,
+        listResponse.status,
       );
     }
-    const data = (await response.json()) as EventsListResult;
+    const data = (await listResponse.json()) as EventsListResult;
     if (!data.items || data.items.length === 0) {
-      throw new GoogleApiError("409 duplicate but could not find existing event by requestId", 409);
+      throw new GoogleApiError(
+        "409 duplicate but could not find existing event by time window scan",
+        409,
+      );
     }
     return data.items[0];
   }
@@ -270,7 +324,8 @@ export class CalendarClient {
   // ---------------------------------------------------------------------------
 
   /**
-   * List events. Throws `SyncTokenExpiredError` on 410 Gone.
+   * List events. Routes through the shared retry loop — same 5-attempt budget
+   * as all other methods. Throws `SyncTokenExpiredError` on 410 Gone.
    */
   async list(options: ListOptions): Promise<EventsListResult> {
     const params = new URLSearchParams();
@@ -286,46 +341,8 @@ export class CalendarClient {
       headers: this.authHeaders(requestId),
     };
 
-    // events.list has a special case: 410 must be checked before the generic
-    // retry loop (it is not retryable).
-    const response = await this.fetchImpl(url, init);
-
-    if (response.status === 410) {
-      throw new SyncTokenExpiredError(
-        "events.list returned 410 Gone: sync token expired, full resync required",
-      );
-    }
-
-    if (response.status === 401) {
-      // One 401 retry attempt for list as well (consistent with insert).
-      const retryResponse = await this.fetchImpl(url, init);
-      if (retryResponse.status === 401) {
-        throw new OAuthTokenExpiredError(
-          "Repeated 401 on events.list: access token expired and could not be refreshed",
-        );
-      }
-      if (isRetryable(retryResponse.status)) {
-        throw new GoogleApiError(
-          `events.list failed (HTTP ${retryResponse.status})`,
-          retryResponse.status,
-        );
-      }
-      if (!retryResponse.ok) {
-        const body = (await retryResponse.json().catch(() => ({}))) as {
-          error?: { message?: string };
-        };
-        throw new GoogleApiError(
-          `events.list failed (HTTP ${retryResponse.status}): ${body?.error?.message ?? "unknown"}`,
-          retryResponse.status,
-        );
-      }
-      return retryResponse.json() as Promise<EventsListResult>;
-    }
-
-    if (isRetryable(response.status)) {
-      // Fall into the retry loop.
-      return this.callWithRetry(url, init).then((r) => r.json() as Promise<EventsListResult>);
-    }
+    // Route through the shared retry loop — 410 detection lives in callWithRetry.
+    const response = await this.callWithRetry(url, init);
 
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as { error?: { message?: string } };

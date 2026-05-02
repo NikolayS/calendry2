@@ -72,13 +72,13 @@ with the old token.
 
 ### `GoogleApiError`
 
-**Trigger:** Any HTTP 5xx response from the Calendar API after all retries
-are exhausted (default: 5 attempts with Retry-After / exponential backoff).
+**Trigger:** Any HTTP 5xx response from the Calendar API after all attempts
+are exhausted (`MAX_ATTEMPTS = 5`).
 
 **Cause:** Google service degradation or quota exhaustion (429 is treated
 identically to 5xx for retry purposes).
 
-**Required action:** After 5 failed attempts, surface the failure to the
+**Required action:** After 5 total attempts, surface the failure to the
 worker job and let it re-queue with its own backoff. Do NOT mark provider
 degraded — this is a transient infrastructure issue, not an auth issue.
 
@@ -86,7 +86,10 @@ degraded — this is a transient infrastructure issue, not an auth issue.
 - Honors `Retry-After` header (seconds) when present.
 - Falls back to exponential backoff: 1s, 2s, 4s, 8s, 16s (jitter not applied
   in Sprint 0; add in Sprint 1 when real quotas matter).
-- Maximum 5 attempts total (1 initial + 4 retries).
+- **5 total attempts: 1 initial + 4 retries.** The constant is named
+  `MAX_ATTEMPTS = 5` (not `MAX_RETRIES`) to make "total" semantics explicit.
+- All methods (`events.insert`, `events.list`, `events.patch`, `events.delete`,
+  `events.watch`) share the same `callWithRetry` loop and the same budget.
 
 ---
 
@@ -94,14 +97,29 @@ degraded — this is a transient infrastructure issue, not an auth issue.
 
 **Trigger:** `events.insert` returns HTTP 409 with `reason: "duplicate"`.
 
-**Cause:** A request with the same `request_id` (idempotency key) was already
+**Cause:** A request with the same `requestId` (idempotency key) was already
 processed. Google is telling us the event already exists.
 
-**Required action:** The client internally fetches the existing event by
-`request_id` (via `events.list?iCalUID=<request_id>` or equivalent lookup)
-and returns it to the caller as if the insert had succeeded. The caller sees
-a normal event resource — no error is thrown. This is the correct idempotent
-behavior for a worker that retried after a crash.
+**Required action:** The client internally reconciles the duplicate and returns
+the existing event to the caller as if the insert had succeeded. No error is
+thrown. This is the correct idempotent behavior for a worker that retried after
+a crash.
+
+**Sprint 0 reconciliation strategy** (refined when real Google 409 fixtures
+from a deploy-time spike are available):
+
+1. **Happy path:** the 409 response body contains the existing event resource
+   under the `event` key (Google sometimes includes it). Return that event
+   directly — no second round-trip.
+2. **Fallback:** if the 409 body does not include the event, perform a
+   `events.list` filtered by `timeMin` / `timeMax` derived from the original
+   insert resource's `start.dateTime` / `end.dateTime`. Return the first
+   matching event.
+
+**Why not `events.list?iCalUID=<requestId>`?** Google's `requestId` is an
+idempotency key scoped to the insert operation. It is NOT stored as the event's
+`iCalUID` field. A lookup by `iCalUID=requestId` returns empty on real data;
+tests that passed used mocks that returned fixtures regardless of query params.
 
 ---
 
