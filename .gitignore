@@ -5,6 +5,9 @@ node_modules/
 
 # Bun — binary lockfile (bun <1.2) is gitignored; text lockfile (bun >=1.2) is committed
 bun.lockb
+# yarn lockfile — not used by this project (Bun workspace); may be created by Next.js
+# tooling that falls back to yarn. Ignore to avoid accidental commits.
+yarn.lock
 
 # Next.js
 .next/

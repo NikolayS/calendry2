@@ -8,7 +8,9 @@ IFS=$'\n\t'
 case "${ENTRYPOINT:-web}" in
   web)
     echo "Starting Calendry web (Next.js)"
-    exec node apps/web/.next/standalone/server.js
+    # In a bun workspace build, Next.js standalone output nests the package path:
+    # apps/web/.next/standalone/apps/web/server.js
+    exec node apps/web/.next/standalone/apps/web/server.js
     ;;
   worker)
     echo "Starting Calendry worker"

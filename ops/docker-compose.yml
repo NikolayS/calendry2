@@ -23,19 +23,17 @@ services:
 
   # ── Postgres 18 ────────────────────────────────────────────────────────────────
   postgres:
-    image: supabase/postgres:15.8.1.060  # Supabase-patched Postgres (PG18 pin — see note)
-    # NOTE: Supabase's own compose uses supabase/postgres which currently ships PG15.
-    # Postgres 18 official image is used here per SPEC.amendments.md.
-    # Switch to official postgres:18 image below; keep supabase extensions via init SQL.
-    # TODO(#6 backend): reconcile supabase extension set with postgres:18 once upstream
-    #   supabase/postgres:18.x ships. Use official postgres:18 in the meantime.
-    #   See: https://github.com/supabase/postgres
+    image: supabase/postgres:15.8.1.060  # Supabase-patched Postgres; PG18 deferred — see SPEC.amendments.md
     restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: postgres
     volumes:
       - pg_data:/var/lib/postgresql/data
+      # Post-init hook: supabase/postgres migrate.sh runs /etc/postgresql.schema.sql last,
+      # after all service roles are created. We use it to set TCP passwords on those roles
+      # (the image creates them with no password; pg_hba.conf requires scram-sha-256).
+      - ./postgres-init/00-supabase-roles.sql:/etc/postgresql.schema.sql:ro
     networks:
       - internal
     healthcheck:
@@ -71,7 +69,7 @@ services:
     environment:
       GOTRUE_DB_DRIVER: postgres
       GOTRUE_DB_DATABASE_URL: >-
-        postgresql://supabase_auth_admin:${POSTGRES_PASSWORD:-postgres}@postgres:5432/postgres
+        postgres://supabase_auth_admin:${SUPABASE_AUTH_ADMIN_PASSWORD:-auth_admin_pw_local}@postgres:5432/postgres?sslmode=disable&search_path=auth
       GOTRUE_SITE_URL: ${GOTRUE_SITE_URL:-http://localhost:3000}
       GOTRUE_URI_ALLOW_LIST: ${GOTRUE_SITE_URL:-http://localhost:3000}
       GOTRUE_DISABLE_SIGNUP: "true"

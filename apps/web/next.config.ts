@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Scaffold placeholder — configuration expands in later sprints
+  // Required for Dockerfile: ops/entrypoint.sh runs `node .next/standalone/server.js`
+  output: "standalone",
 };
 
 export default nextConfig;
