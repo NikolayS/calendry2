@@ -24,7 +24,7 @@ _TODO (Sprint 3): Confirm exact minimum versions and link to official install do
 _TODO (Sprint 3): Walk every variable in `.env.example`, explain what generates it (e.g. `openssl rand -base64 32`), and flag which ones are required before first boot vs. after first boot._
 
 - Clone the repo and copy the example env file: `cp .env.example .env.local`.
-- Required before first boot: `POSTGRES_PASSWORD`, `SUPABASE_JWT_SECRET` / `GOTRUE_JWT_SECRET`, `CSRF_SECRET`, `SIGNED_LINK_SECRET`, `NEXT_PUBLIC_URL`, `GOTRUE_SITE_URL`.
+- Required before first boot: `POSTGRES_PASSWORD`, `SUPABASE_JWT_SECRET` / `GOTRUE_JWT_SECRET`, `CSRF_SECRET`, `BOOKING_TOKEN_SECRET`, `NEXT_PUBLIC_URL`, `GOTRUE_SITE_URL`.
 - Generated on first boot (copy from compose stdout then restart): `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
 - Production-only additions: `RESEND_API_KEY`, `EMAIL_FROM` (must be a Resend-verified sender domain), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `DASHBOARD_PASSWORD`.
 
