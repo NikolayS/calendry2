@@ -5,7 +5,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
-    "test": "bun test --path-ignore-patterns=tests/e2e",
+    "test": "bun test --path-ignore-patterns='tests/integration/**' --path-ignore-patterns='tests/e2e/**'",
     "test:e2e": "bunx playwright test"
   },
   "devDependencies": {

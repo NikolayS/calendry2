@@ -33,7 +33,7 @@ jobs:
         run: bun lint
 
       - name: Test (unit only — integration tests run in sqlever-migrate job)
-        run: bun test --path-ignore-patterns='tests/integration/**'
+        run: bun test --path-ignore-patterns='tests/integration/**' --path-ignore-patterns='tests/e2e/**'
 
   # ── axe a11y — Playwright smoke (replaces axe-stub from #5) ──────────────────
   axe:
