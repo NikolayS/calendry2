@@ -87,4 +87,39 @@ describe("deriveBookingIdempotencyKey", () => {
     // the test above covers determinism).
     void expected;
   });
+
+  // B1: canonicalization — two ISO strings representing the same UTC instant
+  // must produce the same idempotency key, regardless of millisecond notation.
+  it("canonicalizes equivalent UTC instants to the same key", async () => {
+    const base = {
+      bookerEmail: "alice@example.com",
+      slug: "maya-therapy",
+    };
+    // "2026-05-05T17:00:00Z" and "2026-05-05T17:00:00.000Z" are identical instants
+    const k1 = await deriveBookingIdempotencyKey({ ...base, startUtc: "2026-05-05T17:00:00Z" });
+    const k2 = await deriveBookingIdempotencyKey({ ...base, startUtc: "2026-05-05T17:00:00.000Z" });
+    expect(k1).toBe(k2);
+  });
+
+  // B1: invalid start_utc must throw a typed validation error (not produce a key)
+  it("throws a typed validation error for an invalid start_utc", async () => {
+    await expect(
+      deriveBookingIdempotencyKey({
+        bookerEmail: "alice@example.com",
+        startUtc: "not-a-date",
+        slug: "maya-therapy",
+      }),
+    ).rejects.toBeInstanceOf(Error);
+
+    // Verify the error has a typed marker the API handler can check
+    try {
+      await deriveBookingIdempotencyKey({
+        bookerEmail: "alice@example.com",
+        startUtc: "not-a-date",
+        slug: "maya-therapy",
+      });
+    } catch (err) {
+      expect((err as { code?: string }).code).toBe("INVALID_START_UTC");
+    }
+  });
 });
