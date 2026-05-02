@@ -1,11 +1,97 @@
 # Google OAuth Setup Guide
 
-This guide walks the maintainer through obtaining the long-lived OAuth 2.0
-refresh token that Calendry needs to write events to a Google Calendar.
+This guide covers configuring real Google OAuth for production deployments.
+In development and CI, a dev-mock provider at `/api/dev/oauth-google` is used
+instead — no real Google credentials are required to run locally.
+
+## Development (local-first)
+
+The "Sign in with Google" button on `/admin/login` points to `/api/dev/oauth-google`
+when `NODE_ENV !== "production"`. This route returns a fake session for the
+`admin@calendry.local` user. No Google Cloud project needed.
+
+## Production setup
+
+### 1. Create a Google Cloud project
+
+1. Go to [console.cloud.google.com](https://console.cloud.google.com).
+2. Create a new project (or use an existing one).
+3. Enable the **Google Calendar API** under **APIs & Services → Library**.
+
+### 2. Create OAuth 2.0 credentials
+
+1. Navigate to **APIs & Services → Credentials**.
+2. Click **Create credentials → OAuth 2.0 Client IDs**.
+3. Application type: **Web application**.
+4. Add the following **Authorized redirect URI**:
+   ```
+   https://your-domain.com/api/auth/callback/google
+   ```
+   Replace `your-domain.com` with your actual domain.
+5. Copy the **Client ID** and **Client Secret**.
+
+### 3. Configure GoTrue
+
+Add the following to your GoTrue environment (via `docker-compose.yml` or your
+deployment secrets manager):
+
+```env
+GOTRUE_EXTERNAL_GOOGLE_ENABLED=true
+GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID=<your-client-id>
+GOTRUE_EXTERNAL_GOOGLE_SECRET=<your-client-secret>
+GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI=https://your-domain.com/api/auth/callback/google
+```
+
+### 4. Set application environment variables
+
+In `.env.local` (or your secrets manager for production):
+
+```env
+GOOGLE_CLIENT_ID=<your-client-id>
+GOOGLE_CLIENT_SECRET=<your-client-secret>
+```
+
+> **Security:** Never commit real OAuth client secrets. Use `.env.local`
+> (gitignored) in development and a secrets manager in production.
+
+### 5. Verify the flow
+
+1. Start the application in production mode.
+2. Navigate to `/admin/login`.
+3. Click "Sign in with Google".
+4. Complete the Google consent screen.
+5. You should be redirected to `/admin` with a valid session.
+
+## Scope requirements
+
+Calendry requires the following OAuth scopes:
+
+| Scope | Purpose |
+|---|---|
+| `openid` | Authentication |
+| `email` | Admin login identity |
+| `https://www.googleapis.com/auth/calendar` | Read/write Google Calendar events |
+
+The Calendar API scope is requested during provider OAuth connect (Sprint 1+),
+not at admin login time.
+
+## Bring-your-own OAuth client (self-hosters)
+
+Self-hosted instances **must** create their own Google Cloud project and OAuth
+client. Google's default quotas apply per-project; shared clients are not
+supported.
+
+See [Google's quota documentation](https://developers.google.com/calendar/api/guides/quota)
+for rate limit details.
 
 ---
 
-## Prerequisites
+## Google Calendar API — refresh token setup
+
+This section walks the maintainer through obtaining the long-lived OAuth 2.0
+refresh token that Calendry needs to write events to a Google Calendar.
+
+### Prerequisites
 
 - A Google account that owns or manages the calendar you want Calendry to
   write events to.
@@ -14,7 +100,7 @@ refresh token that Calendry needs to write events to a Google Calendar.
 
 ---
 
-## Step 1 — Create a Google Cloud project
+### Step 1 — Create a Google Cloud project
 
 1. Open https://console.cloud.google.com/
 2. Click **Select a project → New Project**.
@@ -22,14 +108,14 @@ refresh token that Calendry needs to write events to a Google Calendar.
 
 ---
 
-## Step 2 — Enable the Google Calendar API
+### Step 2 — Enable the Google Calendar API
 
 1. In the project, go to **APIs & Services → Library**.
 2. Search for "Google Calendar API" and click **Enable**.
 
 ---
 
-## Step 3 — Configure the OAuth consent screen
+### Step 3 — Configure the OAuth consent screen
 
 1. Go to **APIs & Services → OAuth consent screen**.
 2. Choose **External** (or **Internal** if your Google Workspace org owns the calendar).
@@ -53,7 +139,7 @@ refresh token that Calendry needs to write events to a Google Calendar.
 
 ---
 
-## Step 4 — Create OAuth credentials
+### Step 4 — Create OAuth credentials
 
 1. Go to **APIs & Services → Credentials → Create Credentials → OAuth client ID**.
 2. Application type: **Web application**.
@@ -69,12 +155,12 @@ refresh token that Calendry needs to write events to a Google Calendar.
 
 ---
 
-## Step 5 — Obtain the refresh token (one-time)
+### Step 5 — Obtain the refresh token (one-time)
 
 Google does not expose refresh tokens in the Cloud Console. You must perform
 a one-time OAuth authorization flow to obtain it.
 
-### Option A — Use the OAuth Playground (quickest for solo self-hosters)
+#### Option A — Use the OAuth Playground (quickest for solo self-hosters)
 
 1. Open https://developers.google.com/oauthplayground/
 2. Click the gear icon (top right) → check **Use your own OAuth credentials**.
@@ -91,7 +177,7 @@ a one-time OAuth authorization flow to obtain it.
 > **NEVER** commit the refresh token to git, post it in a GitHub issue, or
 > include it in any PR comment. Treat it like a password.
 
-### Option B — Use the built-in OAuth callback (recommended for production)
+#### Option B — Use the built-in OAuth callback (recommended for production)
 
 When the Calendry web app is running, navigate to the admin UI and click
 **Connect Google Calendar**. This performs the full OAuth flow via the
@@ -101,7 +187,7 @@ required.
 
 ---
 
-## Step 6 — Configure environment variables
+### Step 6 — Configure environment variables
 
 Add the following to `.env.local` (gitignored):
 
@@ -119,7 +205,7 @@ the Postgres `providers` table.
 
 ---
 
-## Step 7 — Verify with the spike script
+### Step 7 — Verify with the spike script
 
 ```bash
 GOOGLE_REFRESH_TOKEN=<your token> \
@@ -158,7 +244,7 @@ Fixture round-trip complete. All fixture tests passed.
 
 ---
 
-## Fixture capture procedure
+### Fixture capture procedure
 
 Once real credentials are available, replace the synthetic fixtures with live
 captures:
@@ -174,7 +260,7 @@ captures:
 
 ---
 
-## Refresh token lifecycle
+### Refresh token lifecycle
 
 | Condition | Behavior |
 |---|---|
@@ -190,7 +276,7 @@ See `packages/google/ERRORS.md` for the full error taxonomy.
 
 ---
 
-## Bring-your-own-OAuth-client (for self-hosters)
+### Bring-your-own-OAuth-client (for self-hosters)
 
 If you self-host Calendry, you must supply your own Google OAuth client
 credentials — you cannot use the maintainer's client ID/secret because they

@@ -3,5 +3,7 @@
 frozenLockfile = false
 
 [test]
-# Run all *.test.ts files
+# Run all *.test.ts files; exclude Playwright e2e specs (run via `bun test:e2e`)
 root = "."
+# Playwright specs use @playwright/test runner, not bun:test — exclude from bun test
+pathIgnorePatterns = ["tests/e2e/"]

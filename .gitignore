@@ -42,3 +42,5 @@ npm-debug.log*
 /playwright-report/
 /test-results/
 .k6-summary.json
+test-results/
+tests/e2e/playwright-report/

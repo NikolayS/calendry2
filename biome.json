@@ -23,6 +23,15 @@
     }
   },
   "files": {
-    "ignore": ["node_modules", ".next", "dist", "bun.lockb", "bun.lock", "*.lock"]
+    "ignore": [
+      "node_modules",
+      ".next",
+      "dist",
+      "bun.lockb",
+      "bun.lock",
+      "*.lock",
+      "test-results",
+      "tests/e2e/playwright-report"
+    ]
   }
 }
