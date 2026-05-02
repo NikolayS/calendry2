@@ -343,6 +343,18 @@ psql "$DATABASE_URL" -c '\dn' | grep pgque
 
 Expected output: a row containing `pgque`.
 
+**pgque ticker:** by default the worker self-ticks (`pgque.ticker(queue_name)`)
+on every poll cycle — no extra setup required. For production scale, offload the
+tick to pg_cron instead:
+
+```sql
+SELECT cron.schedule('pgque-google-push-tick', '5 seconds',
+  $$SELECT pgque.ticker('google_push')$$);
+```
+
+With pg_cron driving the ticker, the self-tick call inside the worker can then
+be removed.
+
 **Revert path:** to roll back all migrations (destructive — drops all Calendry
 tables):
 
