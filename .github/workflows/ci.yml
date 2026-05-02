@@ -117,7 +117,7 @@ jobs:
     needs: build
     services:
       postgres:
-        image: postgres:18
+        image: supabase/postgres:15.8.1.060
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: postgres
