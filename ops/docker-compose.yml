@@ -84,9 +84,9 @@ services:
       GOTRUE_SMTP_USER: ${SMTP_USER:-}
       GOTRUE_SMTP_PASS: ${SMTP_PASSWORD:-}
       GOTRUE_SMTP_ADMIN_EMAIL: ${EMAIL_FROM:-noreply@example.com}
-      GOTRUE_MAILER_URLPATHS_CONFIRMATION: /api/auth/confirm
-      GOTRUE_MAILER_URLPATHS_RECOVERY: /api/auth/recovery
-      API_EXTERNAL_URL: ${NEXT_PUBLIC_URL:-http://localhost:9999}
+      GOTRUE_MAILER_URLPATHS_CONFIRMATION: /api/auth/callback
+      GOTRUE_MAILER_URLPATHS_RECOVERY: /api/auth/callback
+      API_EXTERNAL_URL: ${NEXT_PUBLIC_URL:-http://localhost:3000}
       PORT: 9999
     ports:
       - "${GOTRUE_PORT:-9999}:9999"
@@ -208,6 +208,8 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       RATE_LIMIT_PER_IP: ${RATE_LIMIT_PER_IP:-10}
       RATE_LIMIT_PER_EMAIL: ${RATE_LIMIT_PER_EMAIL:-3}
+      # Internal GoTrue URL — web calls this server-side to proxy magic-link requests
+      GOTRUE_URL: http://gotrue:9999
     ports:
       - "${WEB_PORT:-3000}:3000"
     depends_on:
