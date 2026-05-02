@@ -3,7 +3,7 @@ node_modules/
 .pnp
 .pnp.js
 
-# Bun
+# Bun — binary lockfile (bun <1.2) is gitignored; text lockfile (bun >=1.2) is committed
 bun.lockb
 
 # Next.js
