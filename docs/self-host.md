@@ -225,19 +225,31 @@ will restart automatically until Postgres is ready. The `web` and `worker`
 containers similarly wait on both `postgres` and `mailpit`. On first boot allow
 30–60 seconds for all services to stabilise.
 
-**Supabase keys (post-boot step):** after the stack is up, the GoTrue container
-has generated the JWT-based anon and service-role keys. Retrieve them from the
-logs:
+**Supabase keys (post-boot step):** `SUPABASE_ANON_KEY` and
+`SUPABASE_SERVICE_ROLE_KEY` are HS256 JWTs derived from `SUPABASE_JWT_SECRET`.
+The `supabase/gotrue` container does not emit them to stdout, so the grep-the-logs
+approach does not work. Instead, derive them directly from your secret using Bun:
 
 ```bash
-docker compose -f ops/docker-compose.yml logs gotrue 2>&1 \
-  | grep -E 'anon_key|service_role_key' | tail -5
+SUPABASE_JWT_SECRET=<your-secret> bun -e "
+  const secret = process.env.SUPABASE_JWT_SECRET;
+  const enc = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const sign = (payload) => {
+    const header = enc({ alg: 'HS256', typ: 'JWT' });
+    const body = enc(payload);
+    const data = header + '.' + body;
+    const sig = require('crypto').createHmac('sha256', secret).update(data).digest('base64url');
+    return data + '.' + sig;
+  };
+  const iat = Math.floor(Date.now() / 1000);
+  const exp = iat + 60 * 60 * 24 * 365 * 5;
+  console.log('SUPABASE_ANON_KEY=' + sign({ role: 'anon', iss: 'supabase', iat, exp }));
+  console.log('SUPABASE_SERVICE_ROLE_KEY=' + sign({ role: 'service_role', iss: 'supabase', iat, exp }));
+"
 ```
 
-If that does not surface them, you can derive them from `SUPABASE_JWT_SECRET`
-directly using the Supabase JWT helper or by inspecting the GoTrue startup output.
-The keys are standard HS256 JWTs signed with your `SUPABASE_JWT_SECRET`. Copy the
-values into `.env.local`:
+Replace `<your-secret>` with the value of `SUPABASE_JWT_SECRET` from `.env.local`.
+The script prints two lines; paste them into `.env.local`:
 
 ```
 SUPABASE_ANON_KEY=<paste here>
@@ -662,17 +674,20 @@ weekdays:
 
 ```bash
 curl -s \
-  "http://localhost:3000/api/availability?slug=<your-slug>&from=2026-05-04T00:00:00Z&to=2026-05-04T23:59:59Z&zone=UTC" \
+  "http://localhost:3000/api/availability?slug=<your-slug>&from=2026-05-05T00:00:00Z&to=2026-05-05T23:59:59Z&zone=America/Los_Angeles" \
   | jq .
 ```
 
-Expected response (times will reflect your availability rule):
+Expected response for a provider in `America/Los_Angeles` (PDT, UTC−7) with a
+Tuesday `10:00–16:00` local rule. PDT is UTC−7, so 10:00 AM local = 17:00 UTC.
+`2026-05-05` is a Tuesday and falls within the `valid_from`/`valid_to` range set
+in §8c:
 
 ```json
 {
   "slots": [
-    { "start_utc": "2026-05-04T09:00:00.000Z", "end_utc": "2026-05-04T09:30:00.000Z" },
-    { "start_utc": "2026-05-04T09:40:00.000Z", "end_utc": "2026-05-04T10:10:00.000Z" },
+    { "start_utc": "2026-05-05T17:00:00.000Z", "end_utc": "2026-05-05T17:30:00.000Z" },
+    { "start_utc": "2026-05-05T17:40:00.000Z", "end_utc": "2026-05-05T18:10:00.000Z" },
     ...
   ]
 }
