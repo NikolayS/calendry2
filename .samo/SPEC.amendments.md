@@ -94,3 +94,17 @@ auth method. We pin it now to unblock the full-stack track.
 **Decided by:** maintainer (NikolayS) on 2026-05-02.
 
 ---
+
+## 2026-05-02 — Postgres 18 in CI/production, supabase/postgres:15.x in dev compose
+
+**Spec section affected:** earlier amendment "Postgres 18 pin".
+
+**Amendment:** the previous amendment said Postgres 18 is pinned for v0.1. In practice, upstream `supabase/postgres` (the Supabase-patched image required for `auth`, `storage`, `realtime` extensions and roles) has not yet shipped a Postgres 18 tag at the time of Sprint 0. Resolution:
+
+- Self-host **production** compose pins `supabase/postgres:15.8.1.060` (current upstream stable).
+- **CI migration job** runs against `postgres:18` (the unbundled stable Postgres) so that all SQL we write is PG 18-clean. When `supabase/postgres:18.x` ships, the production compose flips to it with no SQL changes expected.
+- Sprint 0 SRE has wired both images. Tracking issue to flip when upstream ships: open follow-up issue after Sprint 0 closes.
+
+**Decided by:** maintainer (NikolayS) on 2026-05-02.
+
+---

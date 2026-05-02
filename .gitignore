@@ -10,6 +10,7 @@
 .vscode/
 .idea/
 *.swp
+*.swo
 
 # OS
 .DS_Store
@@ -17,13 +18,25 @@ Thumbs.db
 
 # Bun / Node
 node_modules/
+.pnp
+.pnp.js
 .next/
 .turbo/
+out/
 dist/
 build/
 coverage/
 *.tsbuildinfo
+# Bun lockfile: binary lockfile (bun <1.2) is gitignored; text lockfile (bun >=1.2) is committed
+bun.lockb
 bun.lockb.bak
+# yarn lockfile — not used by this project (Bun workspace); may be created by Next.js
+# tooling that falls back to yarn. Ignore to avoid accidental commits.
+yarn.lock
+
+# Logs
+*.log
+npm-debug.log*
 
 # Test artifacts
 /playwright-report/

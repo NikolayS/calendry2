@@ -1,0 +1,7 @@
+[install]
+# Use the lockfile — do not disable it
+frozenLockfile = false
+
+[test]
+# Run all *.test.ts files
+root = "."
