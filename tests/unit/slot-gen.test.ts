@@ -76,7 +76,36 @@ const IANA_ZONES = [
 const ianaZoneArb = fc.constantFrom(...IANA_ZONES);
 
 /** Arbitrary slot_minutes in [15, 120] step 5 */
-const slotMinutesArb = fc.integer({ min: 1, max: 24 }).map((n) => n * 5 as 5 | 10 | 15 | 20 | 25 | 30 | 35 | 40 | 45 | 50 | 55 | 60 | 65 | 70 | 75 | 80 | 85 | 90 | 95 | 100 | 105 | 110 | 115 | 120);
+const slotMinutesArb = fc
+  .integer({ min: 1, max: 24 })
+  .map(
+    (n) =>
+      (n * 5) as
+        | 5
+        | 10
+        | 15
+        | 20
+        | 25
+        | 30
+        | 35
+        | 40
+        | 45
+        | 50
+        | 55
+        | 60
+        | 65
+        | 70
+        | 75
+        | 80
+        | 85
+        | 90
+        | 95
+        | 100
+        | 105
+        | 110
+        | 115
+        | 120,
+  );
 
 /** Arbitrary buffer_minutes in [0, 60] step 5 */
 const bufferMinutesArb = fc.integer({ min: 0, max: 12 }).map((n) => n * 5);
@@ -92,36 +121,32 @@ const availabilityRuleArb: fc.Arbitrary<AvailabilityRule> = fc
   .chain(([weekday, slotMinutes, bufferMinutes, zone]) => {
     const gridMinutes = slotMinutes + bufferMinutes;
     // startHour 8..15, endHour must allow at least one slot
-    return fc
-      .integer({ min: 8, max: 15 })
-      .chain((startHour) => {
-        const minEndMinutes = startHour * 60 + gridMinutes;
-        const maxEndMinutes = 22 * 60;
-        if (minEndMinutes >= maxEndMinutes) return fc.constant(null);
-        return fc.integer({ min: minEndMinutes, max: maxEndMinutes }).map((endMinutes) => ({
-          weekday,
-          start_local: startHour * 60,
-          end_local: endMinutes,
-          slot_minutes: slotMinutes,
-          buffer_minutes: bufferMinutes,
-          zone,
-          valid_from: null,
-          valid_to: null,
-        }));
-      });
+    return fc.integer({ min: 8, max: 15 }).chain((startHour) => {
+      const minEndMinutes = startHour * 60 + gridMinutes;
+      const maxEndMinutes = 22 * 60;
+      if (minEndMinutes >= maxEndMinutes) return fc.constant(null);
+      return fc.integer({ min: minEndMinutes, max: maxEndMinutes }).map((endMinutes) => ({
+        weekday,
+        start_local: startHour * 60,
+        end_local: endMinutes,
+        slot_minutes: slotMinutes,
+        buffer_minutes: bufferMinutes,
+        zone,
+        valid_from: null,
+        valid_to: null,
+      }));
+    });
   })
   .filter((r): r is AvailabilityRule => r !== null);
 
 /** Arbitrary UTC window of 1..14 days starting somewhere in 2025. */
-const windowArb = fc
-  .integer({ min: 0, max: 364 })
-  .chain((dayOffset) => {
-    const base = DateTime.fromISO("2025-01-01T00:00:00Z");
-    const startUtc = base.plus({ days: dayOffset });
-    return fc
-      .integer({ min: 1, max: 14 })
-      .map((len) => ({ startUtc, endUtc: startUtc.plus({ days: len }) }));
-  });
+const windowArb = fc.integer({ min: 0, max: 364 }).chain((dayOffset) => {
+  const base = DateTime.fromISO("2025-01-01T00:00:00Z");
+  const startUtc = base.plus({ days: dayOffset });
+  return fc
+    .integer({ min: 1, max: 14 })
+    .map((len) => ({ startUtc, endUtc: startUtc.plus({ days: len }) }));
+});
 
 /** Arbitrary array of busy blocks within a window (0..4 blocks). */
 function busyBlocksArb(win: {
@@ -129,20 +154,23 @@ function busyBlocksArb(win: {
   endUtc: DateTime;
 }): fc.Arbitrary<BusyBlock[]> {
   const windowMs = win.endUtc.toMillis() - win.startUtc.toMillis();
-  return fc
-    .array(
-      fc.tuple(fc.float({ min: 0, max: 0.9 }), fc.float({ min: 0.01, max: 0.2 })).map(
-        ([startFrac, lenFrac]) => {
-          const startMs = win.startUtc.toMillis() + Math.floor(startFrac * windowMs);
-          const endMs = startMs + Math.floor(Math.min(lenFrac, 0.1) * windowMs) + 60_000;
-          return busy(
-            DateTime.fromMillis(startMs, { zone: "UTC" }),
-            DateTime.fromMillis(endMs, { zone: "UTC" }),
-          );
-        },
-      ),
-      { minLength: 0, maxLength: 4 },
-    );
+  // Use integers (percentages 0..99) instead of floats to avoid 32-bit float constraints
+  return fc.array(
+    fc
+      .tuple(
+        fc.integer({ min: 0, max: 89 }), // start pct 0..89%
+        fc.integer({ min: 1, max: 10 }), // length pct 1..10%
+      )
+      .map(([startPct, lenPct]) => {
+        const startMs = win.startUtc.toMillis() + Math.floor((startPct / 100) * windowMs);
+        const endMs = startMs + Math.floor((lenPct / 100) * windowMs) + 60_000;
+        return busy(
+          DateTime.fromMillis(startMs, { zone: "UTC" }),
+          DateTime.fromMillis(endMs, { zone: "UTC" }),
+        );
+      }),
+    { minLength: 0, maxLength: 4 },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -181,9 +209,7 @@ describe("Property 2: every slot is disjoint from busy blocks (touching allowed)
     fc.assert(
       fc.property(
         availabilityRuleArb,
-        windowArb.chain((win) =>
-          busyBlocksArb(win).map((blocks) => ({ win, blocks })),
-        ),
+        windowArb.chain((win) => busyBlocksArb(win).map((blocks) => ({ win, blocks }))),
         ianaZoneArb,
         (r, { win, blocks }, renderZone) => {
           const slots = generateSlots({
@@ -197,8 +223,7 @@ describe("Property 2: every slot is disjoint from busy blocks (touching allowed)
             const slotEnd = s.startUtc.plus({ minutes: s.durationMinutes });
             for (const b of blocks) {
               // overlap iff startUtc < b.endUtc && slotEnd > b.startUtc
-              const overlaps =
-                s.startUtc < b.endUtc && slotEnd > b.startUtc;
+              const overlaps = s.startUtc < b.endUtc && slotEnd > b.startUtc;
               if (overlaps) return false;
             }
           }
@@ -250,40 +275,35 @@ describe("Property 3: slot starts align to (slot+buffer) grid relative to start_
 describe("Property 4: slot count is non-increasing as busy grows", () => {
   it("holds for ≥200 cases", () => {
     fc.assert(
-      fc.property(
-        availabilityRuleArb,
-        windowArb,
-        ianaZoneArb,
-        (r, win, renderZone) => {
-          // Generate slots with no busy
-          const allSlots = generateSlots({
-            rules: [r],
-            busy: [],
-            window: win,
-            providerZone: r.zone,
-            renderZone,
-          });
+      fc.property(availabilityRuleArb, windowArb, ianaZoneArb, (r, win, renderZone) => {
+        // Generate slots with no busy
+        const allSlots = generateSlots({
+          rules: [r],
+          busy: [],
+          window: win,
+          providerZone: r.zone,
+          renderZone,
+        });
 
-          if (allSlots.length === 0) return true; // nothing to test
+        if (allSlots.length === 0) return true; // nothing to test
 
-          // Pick first slot as a busy block, count must drop or stay same
-          const firstSlot = allSlots[0];
-          const blocker = busy(
-            firstSlot.startUtc,
-            firstSlot.startUtc.plus({ minutes: firstSlot.durationMinutes }),
-          );
+        // Pick first slot as a busy block, count must drop or stay same
+        const firstSlot = allSlots[0];
+        const blocker = busy(
+          firstSlot.startUtc,
+          firstSlot.startUtc.plus({ minutes: firstSlot.durationMinutes }),
+        );
 
-          const fewerSlots = generateSlots({
-            rules: [r],
-            busy: [blocker],
-            window: win,
-            providerZone: r.zone,
-            renderZone,
-          });
+        const fewerSlots = generateSlots({
+          rules: [r],
+          busy: [blocker],
+          window: win,
+          providerZone: r.zone,
+          renderZone,
+        });
 
-          return fewerSlots.length <= allSlots.length;
-        },
-      ),
+        return fewerSlots.length <= allSlots.length;
+      }),
       { numRuns: 200 },
     );
   });
@@ -367,7 +387,11 @@ describe("Property 6: no slot starts inside a DST gap", () => {
     fc.assert(
       fc.property(
         fc.tuple(availabilityRuleArb, gapZoneArb, springWindowArb).map(([r, zone, win]) => ({
-          r: { ...r, zone, weekday: win.startUtc.setZone(zone).weekday as 1|2|3|4|5|6|7 },
+          r: {
+            ...r,
+            zone,
+            weekday: win.startUtc.setZone(zone).weekday as 1 | 2 | 3 | 4 | 5 | 6 | 7,
+          },
           zone,
           win,
         })),
@@ -384,7 +408,13 @@ describe("Property 6: no slot starts inside a DST gap", () => {
             const local = s.startUtc.setZone(zone);
             // A time in a gap is invalid in Luxon when constructed via fromObject
             const reconstructed = DateTime.fromObject(
-              { year: local.year, month: local.month, day: local.day, hour: local.hour, minute: local.minute },
+              {
+                year: local.year,
+                month: local.month,
+                day: local.day,
+                hour: local.hour,
+                minute: local.minute,
+              },
               { zone },
             );
             // If the reconstructed time is invalid or has been shifted (gap),
@@ -448,9 +478,15 @@ describe("Property 7: fall-back fold hour yields exactly one slot per UTC instan
         (zone) => {
           // Fall-back windows for each zone
           const fallbacks: Record<string, { startUtc: string; endUtc: string }> = {
-            "America/New_York": { startUtc: "2025-11-02T04:00:00Z", endUtc: "2025-11-02T10:00:00Z" },
+            "America/New_York": {
+              startUtc: "2025-11-02T04:00:00Z",
+              endUtc: "2025-11-02T10:00:00Z",
+            },
             "America/Chicago": { startUtc: "2025-11-02T05:00:00Z", endUtc: "2025-11-02T10:00:00Z" },
-            "America/Los_Angeles": { startUtc: "2025-11-02T07:00:00Z", endUtc: "2025-11-02T12:00:00Z" },
+            "America/Los_Angeles": {
+              startUtc: "2025-11-02T07:00:00Z",
+              endUtc: "2025-11-02T12:00:00Z",
+            },
           };
           const fb = fallbacks[zone];
           const foldWin = {
@@ -489,70 +525,67 @@ describe("Property 7: fall-back fold hour yields exactly one slot per UTC instan
 
 describe("Property 8: overlapping rules with same weekday throw", () => {
   it("throws when two rules for the same weekday have overlapping time ranges", () => {
+    // Build a pair of genuinely-overlapping rules: both same weekday,
+    // r2.start_local is strictly inside r1's range.
     fc.assert(
-      fc.property(
-        availabilityRuleArb,
-        ianaZoneArb,
-        (r, renderZone) => {
-          // Create a second rule that overlaps: same weekday, same zone, start_local shifted by 30 min
-          const r2: AvailabilityRule = {
-            ...r,
-            start_local: r.start_local + 30,
-            end_local: r.end_local + 30,
-          };
-          const win = {
-            startUtc: DateTime.fromISO("2025-01-01T00:00:00Z"),
-            endUtc: DateTime.fromISO("2025-01-15T00:00:00Z"),
-          };
-          let threw = false;
-          try {
-            generateSlots({
-              rules: [r, r2],
-              busy: [],
-              window: win,
-              providerZone: r.zone,
-              renderZone,
-            });
-          } catch {
-            threw = true;
-          }
-          return threw;
-        },
-      ),
+      fc.property(availabilityRuleArb, ianaZoneArb, (r, renderZone) => {
+        const rangeMinutes = r.end_local - r.start_local;
+        if (rangeMinutes < 2) return true; // skip degenerate rules
+        // r2 starts in the middle of r1 and ends after r1 — guaranteed overlap
+        const overlapStart = r.start_local + Math.floor(rangeMinutes / 2);
+        const r2: AvailabilityRule = {
+          ...r,
+          start_local: overlapStart,
+          end_local: r.end_local + r.slot_minutes + r.buffer_minutes,
+        };
+        const win = {
+          startUtc: DateTime.fromISO("2025-01-01T00:00:00Z"),
+          endUtc: DateTime.fromISO("2025-01-15T00:00:00Z"),
+        };
+        let threw = false;
+        try {
+          generateSlots({
+            rules: [r, r2],
+            busy: [],
+            window: win,
+            providerZone: r.zone,
+            renderZone,
+          });
+        } catch {
+          threw = true;
+        }
+        return threw;
+      }),
       { numRuns: 200 },
     );
   });
 
   it("does NOT throw when rules have different weekdays", () => {
     fc.assert(
-      fc.property(
-        availabilityRuleArb,
-        ianaZoneArb,
-        (r, renderZone) => {
-          const otherWeekday = ((r.weekday % 7) + 1) as 1 | 2 | 3 | 4 | 5 | 6 | 7;
-          const r2: AvailabilityRule = {
-            ...r,
-            weekday: otherWeekday,
-          };
-          const win = {
-            startUtc: DateTime.fromISO("2025-01-01T00:00:00Z"),
-            endUtc: DateTime.fromISO("2025-01-15T00:00:00Z"),
-          };
-          let threw = false;
-          try {
-            generateSlots({
-              rules: [r, r2],
-              busy: [],
-              window: win,
-              providerZone: r.zone,
-              renderZone,
-            });
-          } catch {
-            threw = true;
-          }
-          return !threw;
-        },
-      ),
+      fc.property(availabilityRuleArb, ianaZoneArb, (r, renderZone) => {
+        const otherWeekday = ((r.weekday % 7) + 1) as 1 | 2 | 3 | 4 | 5 | 6 | 7;
+        const r2: AvailabilityRule = {
+          ...r,
+          weekday: otherWeekday,
+        };
+        const win = {
+          startUtc: DateTime.fromISO("2025-01-01T00:00:00Z"),
+          endUtc: DateTime.fromISO("2025-01-15T00:00:00Z"),
+        };
+        let threw = false;
+        try {
+          generateSlots({
+            rules: [r, r2],
+            busy: [],
+            window: win,
+            providerZone: r.zone,
+            renderZone,
+          });
+        } catch {
+          threw = true;
+        }
+        return !threw;
+      }),
       { numRuns: 200 },
     );
   });
@@ -593,15 +626,21 @@ describe("Fixture: US DST spring-forward gap slot omitted", () => {
       renderZone: "America/New_York",
     });
 
-    // No slot should start at a UTC time that falls in the gap.
-    // Gap in UTC: 07:00Z to 07:59Z (2am–2:59am ET, which don't exist)
+    // No slot should have a local time in the DST gap.
+    // Gap: 2:00am–2:59am America/New_York on Mar 9 2025 do not exist.
+    // Luxon shifts fromObject calls in that range forward to 3am, so our
+    // implementation skips them. Verify no emitted slot has local hour=2.
     for (const s of slots) {
-      const utcHour = s.startUtc.toUTC().hour;
-      const utcMin = s.startUtc.toUTC().minute;
-      const utcMinutes = utcHour * 60 + utcMin;
-      // 07:00Z–07:59Z is the gap
-      expect(utcMinutes >= 7 * 60 && utcMinutes < 8 * 60).toBe(false);
+      const local = s.startUtc.setZone("America/New_York");
+      // Local 2:x am does not exist on this date (DST gap)
+      expect(local.hour).not.toBe(2);
     }
+    // The gap slots are omitted, so we should have 23 half-hour slots
+    // (24*2=48 minus the 2 gap slots for 2:00am and 2:30am = 46), but the
+    // window is only 12 UTC hours (0Z–12Z), so let's just check count:
+    // 0Z = midnight ET, 12Z = 8am EDT. That spans midnight to 8am local.
+    // With 30-min grid: 0:00,0:30,1:00,1:30,[2:00-skip],[2:30-skip],3:00,3:30,4:00,4:30,5:00,5:30,6:00,6:30,7:00,7:30 = 14 slots
+    expect(slots.length).toBe(14);
   });
 
   it("omits slots in the 2am gap on Mar 8 2026 (NY spring forward)", () => {
@@ -627,12 +666,13 @@ describe("Fixture: US DST spring-forward gap slot omitted", () => {
       renderZone: "America/New_York",
     });
 
+    // Same as above: no slot with local hour=2 on spring-forward day
     for (const s of slots) {
-      const utcHour = s.startUtc.toUTC().hour;
-      const utcMin = s.startUtc.toUTC().minute;
-      const utcMinutes = utcHour * 60 + utcMin;
-      expect(utcMinutes >= 7 * 60 && utcMinutes < 8 * 60).toBe(false);
+      const local = s.startUtc.setZone("America/New_York");
+      expect(local.hour).not.toBe(2);
     }
+    // Same 14 slots: midnight to 8am local, 2 gap slots omitted
+    expect(slots.length).toBe(14);
   });
 });
 
@@ -660,7 +700,7 @@ describe("Fixture: US DST fall-back fold hour offered exactly once", () => {
     };
     const win = {
       startUtc: DateTime.fromISO("2025-11-02T04:00:00Z"), // midnight ET
-      endUtc: DateTime.fromISO("2025-11-02T10:00:00Z"),   // 5am ET (post-fold)
+      endUtc: DateTime.fromISO("2025-11-02T10:00:00Z"), // 5am ET (post-fold)
     };
     const slots = generateSlots({
       rules: [r],
@@ -753,7 +793,7 @@ describe("Fixture: Madrid provider + NYC booker, US/EU DST divergence window", (
     const r: AvailabilityRule = {
       weekday: 7, // Sunday Mar 29 2026
       start_local: 1 * 60, // 1am
-      end_local: 4 * 60,   // 4am
+      end_local: 4 * 60, // 4am
       slot_minutes: 30,
       buffer_minutes: 0,
       zone: "Europe/Madrid",
@@ -776,7 +816,10 @@ describe("Fixture: Madrid provider + NYC booker, US/EU DST divergence window", (
     for (const s of slots) {
       const local = s.startUtc.setZone("Europe/Madrid");
       // 2:00–2:59am CET does not exist on Mar 29
-      const gapStart = DateTime.fromObject({ year: 2026, month: 3, day: 29, hour: 2, minute: 0 }, { zone: "Europe/Madrid" });
+      const gapStart = DateTime.fromObject(
+        { year: 2026, month: 3, day: 29, hour: 2, minute: 0 },
+        { zone: "Europe/Madrid" },
+      );
       // If in gap, Luxon will return invalid or shift to 3am. Verify no slot
       // has a local time in that gap range.
       if (local.hour === 2) {
@@ -1033,7 +1076,7 @@ describe("Fixture: buffer applied AFTER session (Maya 50/10 → 60-min grid, 6 s
     // Verify grid alignment: each slot starts on a 60-min boundary from 10am
     for (const s of tuesdaySlots) {
       const local = s.startUtc.setZone("America/Los_Angeles");
-      const minutesFrom10am = (local.hour * 60 + local.minute) - 10 * 60;
+      const minutesFrom10am = local.hour * 60 + local.minute - 10 * 60;
       expect(minutesFrom10am >= 0).toBe(true);
       expect(minutesFrom10am % 60).toBe(0);
     }
