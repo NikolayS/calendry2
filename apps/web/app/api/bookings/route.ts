@@ -28,7 +28,7 @@ import { withClient } from "../../../../../packages/db/index";
 import type { Booking } from "../../../../../packages/db/index";
 import { deriveBookingIdempotencyKey } from "../../../lib/idempotency";
 import { emailRateLimiter, ipRateLimiter } from "../../../lib/rate-limiter";
-import { signToken } from "../../../lib/signed-token";
+import { TOKEN_TTL_MS, signToken } from "../../../lib/signed-token";
 
 export const dynamic = "force-dynamic";
 
@@ -256,9 +256,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   if (result.type === "idempotent") {
     const booking = result.booking;
+    const issuedAt = Date.now();
     const [cancelToken, rescheduleToken] = await Promise.all([
-      signToken({ booking_id: booking.id, kind: "cancel", issued_at: Date.now() }),
-      signToken({ booking_id: booking.id, kind: "reschedule", issued_at: Date.now() }),
+      signToken({
+        booking_id: booking.id,
+        kind: "cancel",
+        issued_at: issuedAt,
+        exp: issuedAt + TOKEN_TTL_MS,
+      }),
+      signToken({
+        booking_id: booking.id,
+        kind: "reschedule",
+        issued_at: issuedAt,
+        exp: issuedAt + TOKEN_TTL_MS,
+      }),
     ]);
     return NextResponse.json({
       booking_id: booking.id,
@@ -270,9 +281,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   // result.type === "created"
   const booking = result.booking;
+  const issuedAt = Date.now();
   const [cancelToken, rescheduleToken] = await Promise.all([
-    signToken({ booking_id: booking.id, kind: "cancel", issued_at: Date.now() }),
-    signToken({ booking_id: booking.id, kind: "reschedule", issued_at: Date.now() }),
+    signToken({
+      booking_id: booking.id,
+      kind: "cancel",
+      issued_at: issuedAt,
+      exp: issuedAt + TOKEN_TTL_MS,
+    }),
+    signToken({
+      booking_id: booking.id,
+      kind: "reschedule",
+      issued_at: issuedAt,
+      exp: issuedAt + TOKEN_TTL_MS,
+    }),
   ]);
   return NextResponse.json(
     {
