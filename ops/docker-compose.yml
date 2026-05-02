@@ -34,6 +34,8 @@ services:
       # after all service roles are created. We use it to set TCP passwords on those roles
       # (the image creates them with no password; pg_hba.conf requires scram-sha-256).
       - ./postgres-init/00-supabase-roles.sql:/etc/postgresql.schema.sql:ro
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
     networks:
       - internal
     healthcheck:

@@ -1,7 +1,14 @@
 {
   "name": "@calendry/db",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
   "module": "index.ts",
-  "types": "index.ts"
+  "types": "index.ts",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.105.1",
+    "pg": "^8.20.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.0"
+  }
 }

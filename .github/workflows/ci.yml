@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, "sre/**", "web/**", "feat/**", "fix/**", "chore/**", "ops/**"]
+    branches: [main, "sre/**", "web/**", "feat/**", "fix/**", "chore/**", "ops/**", "backend/**"]
   pull_request:
     branches: [main]
 
@@ -32,8 +32,8 @@ jobs:
       - name: Lint
         run: bun lint
 
-      - name: Test (unit + integration)
-        run: bun run test
+      - name: Test (unit only — integration tests run in sqlever-migrate job)
+        run: bun test --path-ignore-patterns='tests/integration/**' --path-ignore-patterns='tests/e2e/**'
 
   # ── axe a11y — Playwright smoke (replaces axe-stub from #5) ──────────────────
   axe:
@@ -105,14 +105,14 @@ jobs:
         run: k6 run tests/load/smoke.js
         continue-on-error: true
 
-  # ── sqlever migration stub ────────────────────────────────────────────────────
+  # ── sqlever migrate (forward + backward + integration tests) ──────────────────
   sqlever-migrate:
     name: sqlever-migrate
     runs-on: ubuntu-latest
     needs: build
     services:
       postgres:
-        image: postgres:18
+        image: supabase/postgres:15.8.1.060
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: postgres
@@ -126,26 +126,45 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.11"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
       - name: Install sqlever
-        run: |
-          echo "sqlever migration stub — real migrations land in #6"
-          echo "Checking sqitch.plan exists:"
-          cat db/sqitch.plan
-          echo ""
-          echo "No migrations to deploy yet. This job is intentionally a stub."
-          echo "It will run forward + backward migrations once #6 lands."
-        continue-on-error: true
+        run: bun install -g sqlever
 
-      - name: sqlever deploy (forward)
-        run: |
-          echo "STUB: sqlever deploy --plan db/sqitch.plan (no migrations yet)"
+      - name: sqlever analyze (must be clean — zero blocking findings)
+        working-directory: db
+        run: sqlever analyze
+
+      - name: sqlever deploy (forward — all 10 migrations)
+        working-directory: db
+        run: sqlever deploy "$DATABASE_URL"
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
-        continue-on-error: true
 
-      - name: sqlever revert (backward)
-        run: |
-          echo "STUB: sqlever revert --plan db/sqitch.plan (no migrations yet)"
+      - name: sqlever verify
+        working-directory: db
+        run: sqlever verify "$DATABASE_URL"
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
-        continue-on-error: true
+
+      - name: Integration tests (schema constraints)
+        run: bun test tests/integration/schema.test.ts
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+
+      - name: sqlever revert (backward — all migrations)
+        working-directory: db
+        run: sqlever revert "$DATABASE_URL" -y
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+
+      - name: sqlever deploy again (idempotency check)
+        working-directory: db
+        run: sqlever deploy "$DATABASE_URL"
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
