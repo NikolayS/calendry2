@@ -1,0 +1,6 @@
+%syntax-version=1.0.0
+%project=calendry2
+%uri=https://github.com/NikolayS/calendry2
+
+# Migrations land in Sprint 0/Backend (#6).
+# sqlever (NikolayS/sqlever) deploys these via deploy/, revert/, verify/.

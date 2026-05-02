@@ -1,0 +1,5 @@
+-- pgque vendored from https://github.com/NikolayS/pgque
+-- Install via: psql -f db/pgque.sql
+-- Full setup lands in Sprint 0/Backend (#6).
+--
+-- Placeholder — real pgque.sql content is fetched from upstream in #6.
