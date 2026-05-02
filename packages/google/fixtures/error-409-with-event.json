@@ -1,0 +1,37 @@
+{
+  "error": {
+    "code": 409,
+    "message": "The requested identifier already exists.",
+    "errors": [
+      {
+        "message": "The requested identifier already exists.",
+        "domain": "global",
+        "reason": "duplicate",
+        "location": "requestId",
+        "locationType": "parameter"
+      }
+    ],
+    "status": "ALREADY_EXISTS"
+  },
+  "event": {
+    "kind": "calendar#event",
+    "etag": "\"3423234234234000\"",
+    "id": "fixture_event_id_001",
+    "status": "confirmed",
+    "htmlLink": "https://www.google.com/calendar/event?eid=fixture",
+    "created": "2026-05-02T10:00:00.000Z",
+    "updated": "2026-05-02T10:00:00.123Z",
+    "summary": "Fixture Booking",
+    "start": {
+      "dateTime": "2026-05-10T14:00:00+02:00",
+      "timeZone": "Europe/Madrid"
+    },
+    "end": {
+      "dateTime": "2026-05-10T14:50:00+02:00",
+      "timeZone": "Europe/Madrid"
+    },
+    "iCalUID": "fixture_event_id_001@google.com",
+    "sequence": 0,
+    "eventType": "default"
+  }
+}

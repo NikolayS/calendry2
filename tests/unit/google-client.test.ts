@@ -7,6 +7,7 @@ import {
 } from "../../packages/google/errors";
 import retry5xxFixture from "../../packages/google/fixtures/error-5xx-retry-after.json";
 import dup409Fixture from "../../packages/google/fixtures/error-409-duplicate.json";
+import dup409WithEventFixture from "../../packages/google/fixtures/error-409-with-event.json";
 import gone410Fixture from "../../packages/google/fixtures/error-410-gone.json";
 import repeated401Fixture from "../../packages/google/fixtures/error-repeated-401.json";
 import happyInsertFixture from "../../packages/google/fixtures/happy-path-insert.json";
@@ -368,5 +369,184 @@ describe("CalendarClient — request_id header on every call", () => {
       },
     });
     expect(capturedAuth).toBe(`Bearer ${happyTokenFixture.access_token}`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Blocker B — retry budget: MAX_ATTEMPTS = 5 (1 initial + 4 retries)
+// ---------------------------------------------------------------------------
+
+describe("CalendarClient — retry budget is exactly 5 total attempts (Blocker B)", () => {
+  it("events.insert: 4×503 then 200 succeeds on the 5th call (budget=5)", async () => {
+    // 4 failures + 1 success = 5 total; must succeed
+    let callCount = 0;
+    const mockFetch = makeFetchMock(async () => {
+      callCount++;
+      if (callCount < 5) {
+        return jsonResponse(retry5xxFixture, 503, { "Retry-After": "0" });
+      }
+      return jsonResponse(happyInsertFixture, 200);
+    });
+    const client = makeClient(mockFetch);
+    const event = await client.insert({
+      requestId: "budget-5-success",
+      resource: {
+        summary: "test",
+        start: { dateTime: "2026-05-10T14:00:00+02:00", timeZone: "Europe/Madrid" },
+        end: { dateTime: "2026-05-10T14:50:00+02:00", timeZone: "Europe/Madrid" },
+      },
+    });
+    expect(event.id).toBe(happyInsertFixture.id);
+    // Must have made exactly 5 calls (4 retryable + 1 success)
+    expect(callCount).toBe(5);
+  });
+
+  it("events.insert: 5×503 throws GoogleApiError — 6th call is never made (budget=5)", async () => {
+    // 5 failures = exhausted budget; must throw without a 6th call
+    let callCount = 0;
+    const mockFetch = makeFetchMock(async () => {
+      callCount++;
+      return jsonResponse(retry5xxFixture, 503, { "Retry-After": "0" });
+    });
+    const client = makeClient(mockFetch);
+    await expect(
+      client.insert({
+        requestId: "budget-5-exhausted",
+        resource: {
+          summary: "test",
+          start: { dateTime: "2026-05-10T14:00:00+02:00", timeZone: "Europe/Madrid" },
+          end: { dateTime: "2026-05-10T14:50:00+02:00", timeZone: "Europe/Madrid" },
+        },
+      }),
+    ).rejects.toThrow(GoogleApiError);
+    // Exactly 5 calls — budget exhausted, no 6th attempt
+    expect(callCount).toBe(5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Blocker A — events.list routes through the shared retry loop
+// ---------------------------------------------------------------------------
+
+describe("CalendarClient — events.list uses the same retry budget as other methods (Blocker A)", () => {
+  it("events.list: 4×503 then 200 succeeds on the 5th call", async () => {
+    let callCount = 0;
+    const mockFetch = makeFetchMock(async () => {
+      callCount++;
+      if (callCount < 5) {
+        return jsonResponse(retry5xxFixture, 503, { "Retry-After": "0" });
+      }
+      return jsonResponse(happyListFixture, 200);
+    });
+    const client = makeClient(mockFetch);
+    const result = await client.list({ syncToken: "valid-token" });
+    expect(result.kind).toBe("calendar#events");
+    expect(callCount).toBe(5);
+  });
+
+  it("events.list: 5×503 throws GoogleApiError after exactly 5 total calls", async () => {
+    let callCount = 0;
+    const mockFetch = makeFetchMock(async () => {
+      callCount++;
+      return jsonResponse(retry5xxFixture, 503, { "Retry-After": "0" });
+    });
+    const client = makeClient(mockFetch);
+    await expect(client.list({ syncToken: "valid-token" })).rejects.toThrow(GoogleApiError);
+    expect(callCount).toBe(5);
+  });
+
+  it("events.list still throws SyncTokenExpiredError on 410 (routed through same path)", async () => {
+    const mockFetch = makeFetchMock(async () => jsonResponse(gone410Fixture, 410));
+    const client = makeClient(mockFetch);
+    await expect(client.list({ syncToken: "stale-token" })).rejects.toThrow(SyncTokenExpiredError);
+  });
+
+  it("events.list: repeated 401 throws OAuthTokenExpiredError (same budget as insert)", async () => {
+    let callCount = 0;
+    const mockFetch = makeFetchMock(async () => {
+      callCount++;
+      return jsonResponse(repeated401Fixture, 401);
+    });
+    const client = makeClient(mockFetch);
+    await expect(client.list({ syncToken: "token" })).rejects.toThrow(OAuthTokenExpiredError);
+    expect(callCount).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Blocker C — 409 reconciliation reads response body, not iCalUID lookup
+// ---------------------------------------------------------------------------
+
+describe("CalendarClient — 409 reconciliation from response body (Blocker C)", () => {
+  it("409 with event in response body: returns that event without a second fetch", async () => {
+    let callCount = 0;
+    const mockFetch = makeFetchMock(async () => {
+      callCount++;
+      // Google returns 409 with the existing event embedded in the body
+      return jsonResponse(dup409WithEventFixture, 409);
+    });
+    const client = makeClient(mockFetch);
+    const event = await client.insert({
+      requestId: "idempotent-key-001",
+      resource: {
+        summary: "Fixture Booking",
+        start: { dateTime: "2026-05-10T14:00:00+02:00", timeZone: "Europe/Madrid" },
+        end: { dateTime: "2026-05-10T14:50:00+02:00", timeZone: "Europe/Madrid" },
+      },
+    });
+    // Must return the embedded event from the 409 body
+    expect(event.id).toBe(dup409WithEventFixture.event.id);
+    // Only 1 call — no second round-trip needed
+    expect(callCount).toBe(1);
+  });
+
+  it("409 with no event in body: falls back to list by start_utc and finds the event", async () => {
+    let callCount = 0;
+    const mockFetch = makeFetchMock(async (_url, _init) => {
+      callCount++;
+      if (callCount === 1) {
+        // First call: insert returns 409 without embedded event
+        return jsonResponse(dup409Fixture, 409);
+      }
+      // Second call: fallback list scan — returns event matching the time window
+      return jsonResponse(happyListFixture, 200);
+    });
+    const client = makeClient(mockFetch);
+    const event = await client.insert({
+      requestId: "idempotent-key-002",
+      resource: {
+        summary: "Fixture Booking",
+        start: { dateTime: "2026-05-10T14:00:00+02:00", timeZone: "Europe/Madrid" },
+        end: { dateTime: "2026-05-10T14:50:00+02:00", timeZone: "Europe/Madrid" },
+      },
+    });
+    // Must return the event found by the list scan
+    expect(event.id).toBe(happyListFixture.items[0].id);
+    // Exactly 2 calls: insert + list fallback
+    expect(callCount).toBe(2);
+  });
+
+  it("409 fallback list scan uses timeMin/timeMax from the insert resource (not iCalUID)", async () => {
+    let capturedUrl = "";
+    let callCount = 0;
+    const mockFetch = makeFetchMock(async (url) => {
+      callCount++;
+      capturedUrl = url;
+      if (callCount === 1) return jsonResponse(dup409Fixture, 409);
+      return jsonResponse(happyListFixture, 200);
+    });
+    const client = makeClient(mockFetch);
+    await client.insert({
+      requestId: "idempotent-key-003",
+      resource: {
+        summary: "Fixture Booking",
+        start: { dateTime: "2026-05-10T14:00:00+02:00", timeZone: "Europe/Madrid" },
+        end: { dateTime: "2026-05-10T14:50:00+02:00", timeZone: "Europe/Madrid" },
+      },
+    });
+    // The fallback list URL must use timeMin/timeMax — NOT iCalUID=requestId
+    expect(capturedUrl).toContain("timeMin=");
+    expect(capturedUrl).toContain("timeMax=");
+    expect(capturedUrl).not.toContain("iCalUID=idempotent-key-003");
   });
 });
