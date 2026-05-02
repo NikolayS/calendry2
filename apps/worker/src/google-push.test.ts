@@ -13,14 +13,14 @@ import type { GooglePushJobPayload } from "./google-push";
 // Fixture JSON (loaded from packages/google/fixtures/)
 // ---------------------------------------------------------------------------
 
-import happyPathInsert from "../../../packages/google/fixtures/happy-path-insert.json";
-import happyPathToken from "../../../packages/google/fixtures/happy-path-token.json";
-import error409WithEvent from "../../../packages/google/fixtures/error-409-with-event.json";
-import error409Duplicate from "../../../packages/google/fixtures/error-409-duplicate.json";
-import errorInvalidGrant from "../../../packages/google/fixtures/error-invalid-grant.json";
 import error5xxRetryAfter from "../../../packages/google/fixtures/error-5xx-retry-after.json";
-import happyPathList from "../../../packages/google/fixtures/happy-path-list.json";
+import error409Duplicate from "../../../packages/google/fixtures/error-409-duplicate.json";
+import error409WithEvent from "../../../packages/google/fixtures/error-409-with-event.json";
+import errorInvalidGrant from "../../../packages/google/fixtures/error-invalid-grant.json";
 import errorRepeated401 from "../../../packages/google/fixtures/error-repeated-401.json";
+import happyPathInsert from "../../../packages/google/fixtures/happy-path-insert.json";
+import happyPathList from "../../../packages/google/fixtures/happy-path-list.json";
+import happyPathToken from "../../../packages/google/fixtures/happy-path-token.json";
 
 // ---------------------------------------------------------------------------
 // Test data
@@ -79,6 +79,33 @@ function makeResponseWithHeader(
 // DB client mock factory
 // ---------------------------------------------------------------------------
 
+// The JOIN query aliases provider columns with p_ prefix. Build the combined
+// row shape that matches what the SQL SELECT actually returns.
+function makeJoinedRow(
+  bookingRow: Record<string, unknown>,
+  providerRow: Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    // booking columns (unaliased)
+    id: bookingRow.id,
+    provider_id: bookingRow.provider_id,
+    booker_email: bookingRow.booker_email,
+    booker_name: bookingRow.booker_name,
+    booker_notes: bookingRow.booker_notes ?? null,
+    start_utc: bookingRow.start_utc,
+    end_utc: bookingRow.end_utc,
+    state: bookingRow.state,
+    google_event_id: bookingRow.google_event_id ?? null,
+    idempotency_key: bookingRow.idempotency_key,
+    // provider columns (p_ alias)
+    p_id: providerRow.id,
+    p_email: providerRow.email,
+    p_home_tz: providerRow.home_tz,
+    p_google_oauth_refresh_token: providerRow.google_oauth_refresh_token ?? null,
+    p_oauth_status: providerRow.oauth_status,
+  };
+}
+
 function makeDbClient(overrides?: {
   bookingRow?: Record<string, unknown> | null;
   providerRow?: Record<string, unknown> | null;
@@ -95,7 +122,7 @@ function makeDbClient(overrides?: {
         return { rows: [], rowCount: 0 };
       }
       return {
-        rows: [{ ...bookingRow, ...providerRow }],
+        rows: [makeJoinedRow(bookingRow, providerRow)],
         rowCount: 1,
       };
     }
@@ -232,9 +259,7 @@ describe("processGooglePushJob — idempotency (strict TDD requirement)", () => 
 
     const bookingUpdate = updatedFields.find(
       (f) =>
-        f.sql.includes("update") &&
-        f.sql.includes("bookings") &&
-        f.values.includes("confirmed"),
+        f.sql.includes("update") && f.sql.includes("bookings") && f.values.includes("confirmed"),
     );
     expect(bookingUpdate).toBeDefined();
     // Must store the event id from the 409 body
@@ -260,9 +285,7 @@ describe("processGooglePushJob — 5xx retry exhaustion", () => {
       return makeResponseWithHeader(error5xxRetryAfter, 503, { "Retry-After": "0" });
     });
 
-    await expect(
-      processGooglePushJob({ db, fetchImpl, payload: JOB_PAYLOAD }),
-    ).rejects.toThrow();
+    await expect(processGooglePushJob({ db, fetchImpl, payload: JOB_PAYLOAD })).rejects.toThrow();
 
     // All 5 attempts exhausted (calendarClient retries internally)
     expect(callCount).toBe(5);
@@ -291,9 +314,7 @@ describe("processGooglePushJob — OAuth revoked (invalid_grant)", () => {
       return makeResponse(happyPathInsert, 200);
     });
 
-    await expect(
-      processGooglePushJob({ db, fetchImpl, payload: JOB_PAYLOAD }),
-    ).rejects.toThrow();
+    await expect(processGooglePushJob({ db, fetchImpl, payload: JOB_PAYLOAD })).rejects.toThrow();
 
     // Provider oauth_status must be set to 'revoked'
     const providerUpdate = dbCalls.find(
@@ -327,9 +348,7 @@ describe("processGooglePushJob — OAuth revoked (invalid_grant)", () => {
       return makeResponse(errorRepeated401, 401);
     });
 
-    await expect(
-      processGooglePushJob({ db, fetchImpl, payload: JOB_PAYLOAD }),
-    ).rejects.toThrow();
+    await expect(processGooglePushJob({ db, fetchImpl, payload: JOB_PAYLOAD })).rejects.toThrow();
 
     const providerUpdate = dbCalls.find(
       (c) => c.sql.includes("update") && c.sql.includes("providers"),
@@ -400,9 +419,9 @@ describe("processGooglePushJob — booking not found", () => {
 
     const fetchImpl = mock(async () => makeResponse(happyPathToken, 200));
 
-    await expect(
-      processGooglePushJob({ db, fetchImpl, payload: JOB_PAYLOAD }),
-    ).rejects.toThrow(/booking.*not found/i);
+    await expect(processGooglePushJob({ db, fetchImpl, payload: JOB_PAYLOAD })).rejects.toThrow(
+      /booking.*not found/i,
+    );
   });
 });
 
@@ -436,9 +455,7 @@ describe("processGooglePushJob — OAuth scope downgrade", () => {
       return makeResponse(happyPathInsert, 200);
     });
 
-    await expect(
-      processGooglePushJob({ db, fetchImpl, payload: JOB_PAYLOAD }),
-    ).rejects.toThrow();
+    await expect(processGooglePushJob({ db, fetchImpl, payload: JOB_PAYLOAD })).rejects.toThrow();
 
     const providerUpdate = dbCalls.find(
       (c) => c.sql.includes("update") && c.sql.includes("providers"),
@@ -463,8 +480,8 @@ describe("processGooglePushJob — 410 edge case", () => {
       return makeResponse({ error: { code: 410, message: "Gone" } }, 410);
     });
 
-    await expect(
-      processGooglePushJob({ db, fetchImpl, payload: JOB_PAYLOAD }),
-    ).rejects.toThrow(/410|sync.token/i);
+    await expect(processGooglePushJob({ db, fetchImpl, payload: JOB_PAYLOAD })).rejects.toThrow(
+      /410|sync.token/i,
+    );
   });
 });
