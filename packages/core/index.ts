@@ -1,4 +1,4 @@
 // @calendry/core — slot generation, booking state machine, ICS generation, time math
-// Implementations land in Sprint 1+ (see SPEC.md §Implementation Plan)
 
-export {};
+export type { AvailabilityRule, BusyBlock, Slot } from "./src/slot-gen";
+export { generateSlots } from "./src/slot-gen";
