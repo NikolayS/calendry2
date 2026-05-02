@@ -1,5 +1,17 @@
 # Google OAuth Setup Guide
 
+> **TL;DR for the impatient:**
+> 1. Create a Google Cloud project, enable the Calendar API, create an OAuth 2.0
+>    Web Application credential, and copy the Client ID + Secret into `.env.local`
+>    as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
+> 2. Add `https://<your-domain>/api/auth/callback/google` as an Authorized
+>    Redirect URI in the Google Cloud Console.
+> 3. For admin login in local dev: no real credentials needed — the mock route
+>    `/api/dev/oauth-google` returns a fake session automatically.
+> 4. For Calendar access: complete the "Connect Google Calendar" flow in the
+>    admin UI (`/admin`). The refresh token is stored in the database; you never
+>    handle it manually.
+
 This guide covers two OAuth concerns for a Calendry self-host:
 
 1. **GoTrue admin OAuth** — how admins log in to `/admin` (magic link + Google sign-in via Supabase GoTrue). Deploy-time setup.
