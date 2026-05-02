@@ -1,0 +1,33 @@
+{
+  "kind": "calendar#event",
+  "etag": "\"3423234234235000\"",
+  "id": "fixture_event_id_001",
+  "status": "confirmed",
+  "htmlLink": "https://www.google.com/calendar/event?eid=fixture",
+  "created": "2026-05-02T10:00:00.000Z",
+  "updated": "2026-05-02T11:00:00.456Z",
+  "summary": "Fixture Booking (rescheduled)",
+  "description": "Sprint 0 fixture event",
+  "creator": {
+    "email": "provider@example.com",
+    "self": true
+  },
+  "organizer": {
+    "email": "provider@example.com",
+    "self": true
+  },
+  "start": {
+    "dateTime": "2026-05-11T14:00:00+02:00",
+    "timeZone": "Europe/Madrid"
+  },
+  "end": {
+    "dateTime": "2026-05-11T14:50:00+02:00",
+    "timeZone": "Europe/Madrid"
+  },
+  "iCalUID": "fixture_event_id_001@google.com",
+  "sequence": 1,
+  "reminders": {
+    "useDefault": true
+  },
+  "eventType": "default"
+}

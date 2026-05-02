@@ -1,0 +1,33 @@
+{
+  "kind": "calendar#events",
+  "etag": "\"fixture_list_etag\"",
+  "summary": "provider@example.com",
+  "updated": "2026-05-02T10:00:00.000Z",
+  "timeZone": "Europe/Madrid",
+  "accessRole": "owner",
+  "defaultReminders": [],
+  "nextSyncToken": "fixture_sync_token_v2",
+  "items": [
+    {
+      "kind": "calendar#event",
+      "etag": "\"3423234234234000\"",
+      "id": "fixture_event_id_001",
+      "status": "confirmed",
+      "htmlLink": "https://www.google.com/calendar/event?eid=fixture",
+      "created": "2026-05-02T10:00:00.000Z",
+      "updated": "2026-05-02T10:00:00.123Z",
+      "summary": "Fixture Booking",
+      "start": {
+        "dateTime": "2026-05-10T14:00:00+02:00",
+        "timeZone": "Europe/Madrid"
+      },
+      "end": {
+        "dateTime": "2026-05-10T14:50:00+02:00",
+        "timeZone": "Europe/Madrid"
+      },
+      "iCalUID": "fixture_event_id_001@google.com",
+      "sequence": 0,
+      "eventType": "default"
+    }
+  ]
+}
