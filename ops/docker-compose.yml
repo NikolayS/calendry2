@@ -198,7 +198,7 @@ services:
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/postgres}
       CSRF_SECRET: ${CSRF_SECRET:-changeme}
-      SIGNED_LINK_SECRET: ${SIGNED_LINK_SECRET:-changeme}
+      BOOKING_TOKEN_SECRET: ${BOOKING_TOKEN_SECRET:-changeme}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       EMAIL_FROM: ${EMAIL_FROM:-noreply@example.com}
       EMAIL_DRIVER: ${EMAIL_DRIVER:-smtp}
@@ -206,8 +206,8 @@ services:
       SMTP_PORT: ${SMTP_PORT:-1025}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      RATE_LIMIT_PER_IP: ${RATE_LIMIT_PER_IP:-10}
-      RATE_LIMIT_PER_EMAIL: ${RATE_LIMIT_PER_EMAIL:-3}
+      RATE_LIMIT_BOOKING_IP_PER_MIN: ${RATE_LIMIT_BOOKING_IP_PER_MIN:-10}
+      RATE_LIMIT_BOOKING_EMAIL_PER_MIN: ${RATE_LIMIT_BOOKING_EMAIL_PER_MIN:-3}
       # Internal GoTrue URL — web calls this server-side to proxy magic-link requests
       GOTRUE_URL: http://gotrue:9999
     ports:
@@ -236,7 +236,7 @@ services:
       SMTP_PORT: ${SMTP_PORT:-1025}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      SIGNED_LINK_SECRET: ${SIGNED_LINK_SECRET:-changeme}
+      BOOKING_TOKEN_SECRET: ${BOOKING_TOKEN_SECRET:-changeme}
       NEXT_PUBLIC_URL: ${NEXT_PUBLIC_URL:-http://localhost:3000}
     depends_on:
       postgres:
