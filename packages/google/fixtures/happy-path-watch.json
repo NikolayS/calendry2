@@ -1,0 +1,8 @@
+{
+  "kind": "api#channel",
+  "id": "fixture-channel-id-001",
+  "resourceId": "fixture-resource-id-001",
+  "resourceUri": "https://www.googleapis.com/calendar/v3/calendars/provider@example.com/events?alt=json",
+  "token": "fixture-channel-token-001",
+  "expiration": "1780000000000"
+}
