@@ -108,3 +108,11 @@ auth method. We pin it now to unblock the full-stack track.
 **Decided by:** maintainer (NikolayS) on 2026-05-02.
 
 ---
+
+## 2026-05-02 — CI postgres image: supabase/postgres:15.x
+
+**Spec section affected:** previous PG 18 amendment.
+
+**Amendment:** Vanilla `postgres:18` does not bundle pg_cron (it requires `shared_preload_libraries` at server start). pgque uses pg_cron for its ticker, so the migration cannot deploy on vanilla PG 18. CI flips to `supabase/postgres:15.8.1.060` — same image as dev compose. The PG 18 forward-compat goal is deferred to whenever an upstream Postgres 18 image with pg_cron exists.
+
+**Decided by:** maintainer-via-manager on 2026-05-02.
