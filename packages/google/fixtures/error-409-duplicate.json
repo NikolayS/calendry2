@@ -1,0 +1,16 @@
+{
+  "error": {
+    "code": 409,
+    "message": "The requested identifier already exists.",
+    "errors": [
+      {
+        "message": "The requested identifier already exists.",
+        "domain": "global",
+        "reason": "duplicate",
+        "location": "request_id",
+        "locationType": "parameter"
+      }
+    ],
+    "status": "ALREADY_EXISTS"
+  }
+}
