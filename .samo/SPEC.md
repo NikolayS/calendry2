@@ -311,3 +311,15 @@ Total: ~7 weeks of calendar time with 5 FTE.
 
 - v0.1 — Initial spec. Defines: single-provider booking page with Google Calendar 2-way sync, confirmations + reminders, timezone-correct slot generation including DST edge cases, conflict detection on external mutation, single-binary self-host deploy. Hires: ~5 FTE veterans. Plan: 7 weeks across 5 sprints. Explicit non-goals: team scheduling, CRM, payments, non-Google calendar backends.
 - v0.2 — Filled architecture diagram. Reconciled tenancy framing (single-organization-per-deploy, multi-provider schema). Reframed email path explicitly as transactional outbox (not fire-and-forget). Specified cancellation flow (Google `events.delete` + idempotency + cancel-from-conflicted). Specified reschedule flow (cancel-then-create with `rescheduled_from`, `events.patch` keeping `google_event_id`, sequence-numbered idempotency, old-reminder cancellation). Defined buffer semantics (after-only) and availability-rule overlap policy (rejected at write time via exclusion constraint). Defined late-booking reminder behavior (skip if <24h). Added `manual_blackouts` table + admin CRUD + sprint slot. Committed up-front to Luxon and Next.js (removed Sprint 0 deferral). Added SLO table with hard 5-minute conflict-notification SLO. Added latency assertion test backing that SLO. Added security test suite (auth, CSRF, rate-limit, XSS, signed-link tampering, webhook authenticity). Added OAuth failure-mode test suite + `oauth_status` field + admin surface. Added email failure-mode tests (SMTP transient, hard bounce, startup misconfig, stuck queue). Added axe a11y CI gate + per-component tests. Added ICS compatibility suite (Apple/Outlook parsers). Expanded Playwright to 4 locales matching Daniel's story + explicit Mar 8–29 2026 Madrid↔NYC scenario. Wrote 8 property-based invariants grounding the "200+ property tests" target. Replaced "manual acceptance = the three stories" with an enumerated checklist with measurable thresholds. No scope expansion; all changes are clarification, hardening, or test-coverage gaps surfaced by review.
+
+
+<!-- samo:user-feedback start -->
+## User feedback for next round
+
+stack: self-hosted supabase, Postgres 18, TS (Bun), all latest,
+pgque for queues if needed (project in our GitHub)
+for DB migratiosn -- sqlever (also in our github)
+resend will be used to send emails
+auth – magic links and google oauth
+cloudflare for DNS and SSL
+<!-- samo:user-feedback end -->
