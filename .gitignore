@@ -1,42 +1,44 @@
-# Dependencies
-node_modules/
-.pnp
-.pnp.js
+# Claude Code agent isolation worktrees (auto-created, never committed)
+.claude/
 
-# Bun — binary lockfile (bun <1.2) is gitignored; text lockfile (bun >=1.2) is committed
-bun.lockb
-# yarn lockfile — not used by this project (Bun workspace); may be created by Next.js
-# tooling that falls back to yarn. Ignore to avoid accidental commits.
-yarn.lock
-
-# Next.js
-.next/
-out/
-dist/
-
-# Env — NEVER commit real secrets
+# Env / secrets
 .env
 .env.local
 .env.*.local
 
-# OS
-.DS_Store
-Thumbs.db
-
-# IDE
+# Editor
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# Build
+# OS
+.DS_Store
+Thumbs.db
+
+# Bun / Node
+node_modules/
+.pnp
+.pnp.js
+.next/
+.turbo/
+out/
+dist/
+build/
+coverage/
 *.tsbuildinfo
+# Bun lockfile: binary lockfile (bun <1.2) is gitignored; text lockfile (bun >=1.2) is committed
+bun.lockb
+bun.lockb.bak
+# yarn lockfile — not used by this project (Bun workspace); may be created by Next.js
+# tooling that falls back to yarn. Ignore to avoid accidental commits.
+yarn.lock
 
 # Logs
 *.log
 npm-debug.log*
 
-# Testing
-coverage/
-playwright-report/
-test-results/
+# Test artifacts
+/playwright-report/
+/test-results/
+.k6-summary.json

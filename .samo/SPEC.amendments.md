@@ -41,6 +41,36 @@ one migration tool, one queue, one provider). Keeps things simple per the
 
 ---
 
+## 2026-05-02 — Postgres 18 pin + Cloudflare for DNS/SSL
+
+**Spec section affected:** §Architecture, §Implementation Plan / Sprint 3
+self-host story.
+
+**Amendment:**
+
+- **Postgres 18** pinned for v0.1. (Spec was silent on PG version.) sqlever
+  static-analysis rules and any PG-version-sensitive SQL must target 18.
+  pgque already supports PG 14+; pg_ash compatibility is not required for
+  v0.1.
+- **Cloudflare** is the documented DNS + SSL termination layer for the
+  self-host story. Self-host docs cover: DNS A/AAAA records, "Full (strict)"
+  SSL with origin certs, and optional Cloudflare Tunnel for home servers
+  that don't have a public IP. Caddy/nginx is no longer required as a
+  default reverse proxy in the self-host quickstart (Cloudflare proxy +
+  Bun's built-in HTTP server is enough); Caddy remains an option for users
+  not using Cloudflare.
+- **Latest-stable rule:** all third-party deps (Bun, Next.js, Luxon, etc.)
+  pinned to latest stable at Sprint 0 lock-in. The spec's deferred
+  Temporal-migration item still holds.
+
+**Rationale:** Maintainer's hosting setup. Cloudflare is "free SSL +
+free DNS + DDoS-shielded" which fits the self-host story; PG 18 is the
+current stable line at project start.
+
+**Decided by:** maintainer (NikolayS) on 2026-05-02.
+
+---
+
 ## 2026-05-02 — Auth model: admin-only login, anonymous booking
 
 **Spec section affected:** §Tests Plan / Security (Admin UI auth), §Tenancy.

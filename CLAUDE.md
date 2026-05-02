@@ -11,23 +11,34 @@ durable email outbox. See `.samo/SPEC.md` for the full v0.2 spec.
 **These choices OVERRIDE the SPEC where they conflict.** See
 `.samo/SPEC.amendments.md` for the audit trail.
 
-- **Runtime:** TypeScript on **Bun** (test runner, scripts, server)
-- **Web framework:** **Next.js** (per spec — SSR public booking pages)
+- **Runtime:** TypeScript on **Bun** — latest stable. Bun runs the test
+  runner, scripts, and the worker process.
+- **Web framework:** **Next.js** — latest stable (per spec — SSR public
+  booking pages).
 - **Database + auth:** **self-hosted Supabase** (compose-based; no Supabase
-  Cloud dependency). Postgres for data; GoTrue for admin auth.
-- **Admin auth:** magic link (via **Resend**) + **Google OAuth**.
-  Bookers (public visitors) DO NOT log in — booking page is anonymous and
-  uses signed links for cancel/reschedule.
+  Cloud dependency). **Postgres 18** pinned. Supabase GoTrue handles admin
+  auth.
+- **Admin auth:** **magic link** + **Google OAuth** (via Supabase GoTrue;
+  magic-link emails sent via Resend). Bookers (public visitors) DO NOT
+  log in — public booking page is anonymous; cancel/reschedule is gated
+  by signed links sent in confirmation email.
 - **Migrations:** **sqlever** (https://github.com/NikolayS/sqlever) — Sqitch-
   compatible with built-in static analysis. `deploy/`, `revert/`, `verify/`
   scripts plus `sqitch.plan`.
-- **Time:** **Luxon** (per spec — DST gap/fold semantics locked into fixtures)
+- **Time:** **Luxon** — latest stable (per spec — DST gap/fold semantics
+  locked into fixtures).
 - **Queues:** **pgque** (https://github.com/NikolayS/pgque) — install via
-  `\i pgque.sql`; pg_cron drives the ticker
+  `\i pgque.sql`; pg_cron drives the ticker.
 - **Email:** **Resend** (transactional) for booking confirmations, reminders,
-  conflict notifications, magic links. Generic SMTP fallback documented for
-  self-hosters who don't want Resend.
-- **External:** Google Calendar API (OAuth + watch channels + sync tokens)
+  conflict notifications, and magic-link auth.
+- **DNS + SSL:** **Cloudflare** — DNS, TLS termination/origin certs, and
+  proxying for the public booking page and admin UI. Self-host docs include
+  the Cloudflare setup (DNS records, SSL mode, optional Tunnel for home
+  servers).
+- **External:** Google Calendar API (OAuth + watch channels + sync tokens).
+
+**General rule:** all third-party libraries pinned to **latest stable** at
+Sprint 0 lock-in. No legacy support targets unless a SPEC fixture requires it.
 
 ## Keep it simple
 
@@ -117,9 +128,22 @@ their own PR.
    of testing as a PR comment (commands run, results, screenshots for UI).
 5. **Merge.** Squash merge once 1–4 are all green. Manager (or assigned
    approver) clicks merge.
+6. **Delete the branch.** Immediately after merge, the merged branch is
+   deleted both on the remote (`git push origin --delete <branch>`) and
+   locally (`git branch -d <branch>`). The PR author is responsible for
+   cleaning up their own branch. If the manager merges, the manager
+   deletes the branch. The repo is configured to auto-delete on merge
+   when the GitHub setting permits — but agents must NOT rely on the
+   setting.
 
 Intermediate progress MUST be reported as comments on the issue (not just
 the PR) so the manager can supervise without scrolling diffs.
+
+**No exceptions, no fast-tracks.** Every PR — including governance,
+docs, and CI/scaffolding PRs — runs the full lifecycle once Sprint 0
+ships CI. Until CI exists (one-time, this is the bootstrap moment), the
+manager may merge a governance PR with REV-only review. Every Sprint 0
+author PR runs the full lifecycle.
 
 ## Branching
 
