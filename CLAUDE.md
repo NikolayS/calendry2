@@ -128,9 +128,22 @@ their own PR.
    of testing as a PR comment (commands run, results, screenshots for UI).
 5. **Merge.** Squash merge once 1–4 are all green. Manager (or assigned
    approver) clicks merge.
+6. **Delete the branch.** Immediately after merge, the merged branch is
+   deleted both on the remote (`git push origin --delete <branch>`) and
+   locally (`git branch -d <branch>`). The PR author is responsible for
+   cleaning up their own branch. If the manager merges, the manager
+   deletes the branch. The repo is configured to auto-delete on merge
+   when the GitHub setting permits — but agents must NOT rely on the
+   setting.
 
 Intermediate progress MUST be reported as comments on the issue (not just
 the PR) so the manager can supervise without scrolling diffs.
+
+**No exceptions, no fast-tracks.** Every PR — including governance,
+docs, and CI/scaffolding PRs — runs the full lifecycle once Sprint 0
+ships CI. Until CI exists (one-time, this is the bootstrap moment), the
+manager may merge a governance PR with REV-only review. Every Sprint 0
+author PR runs the full lifecycle.
 
 ## Branching
 
